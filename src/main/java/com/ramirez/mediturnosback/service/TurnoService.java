@@ -59,9 +59,16 @@ public class TurnoService {
         this.verificationDispatchService = verificationDispatchService;
     }
 
+    @Transactional(readOnly = true)
     public List<TurnoResponse> listarTodos() { return turnoRepository.findAll().stream().map(this::mapTurno).toList(); }
+    
+    @Transactional(readOnly = true)
     public TurnoResponse obtenerPorId(Long id) { return mapTurno(obtenerEntidadPorId(id)); }
+    
+    @Transactional(readOnly = true)
     public List<TurnoResponse> listarPorPaciente(Long pacienteId) { return turnoRepository.findByPacienteIdOrderByFechaHoraInicioDesc(pacienteId).stream().map(this::mapTurno).toList(); }
+    
+    @Transactional(readOnly = true)
     public List<TurnoResponse> listarHistoriaClinica(Long usuarioId) { return turnoRepository.findByPacienteUsuario_IdAndEstadoOrderByFechaHoraInicioDesc(usuarioId, EstadoTurno.ATENDIDO).stream().map(this::mapTurno).toList(); }
 
     public List<DisponibilidadSlotResponse> listarDisponibilidad(Long profesionalInstitucionId) {
@@ -139,7 +146,10 @@ public class TurnoService {
         }
 
         TurnoResponse response = mapTurno(guardado);
-        verificationDispatchService.enviarConfirmacionTurno(response);
+        String emailPaciente = guardado.getPaciente() != null && guardado.getPaciente().getUsuario() != null
+                ? guardado.getPaciente().getUsuario().getEmail()
+                : null;
+        verificationDispatchService.enviarConfirmacionTurno(response, emailPaciente);
         return response;
     }
 

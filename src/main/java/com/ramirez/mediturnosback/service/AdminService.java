@@ -362,6 +362,7 @@ public class AdminService {
         Paciente paciente = pacienteRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente no encontrado con id: " + id));
         Usuario usuario = paciente.getUsuario();
+
         if (request.getEmail() != null && !request.getEmail().isBlank()) {
             validarEmailUnico(request.getEmail(), usuario.getId());
             usuario.setEmail(normalizeEmail(request.getEmail()));
@@ -374,23 +375,47 @@ public class AdminService {
             usuario.setActivo(request.getActivo());
             paciente.setActivo(request.getActivo());
         }
+
+        // Campos de Paciente
         if (request.getNombre() != null && !request.getNombre().isBlank()) paciente.setNombre(request.getNombre().trim());
         if (request.getApellido() != null && !request.getApellido().isBlank()) paciente.setApellido(request.getApellido().trim());
         if (request.getDni() != null && !request.getDni().isBlank()) {
             validarDniUnicoPaciente(request.getDni(), paciente.getId());
             paciente.setDni(request.getDni().trim());
         }
-        if (request.getFechaNacimiento() != null) paciente.setFechaNacimiento(request.getFechaNacimiento());
+        
+        // Manejo seguro de Fecha
+        if (request.getFechaNacimiento() != null) {
+            paciente.setFechaNacimiento(request.getFechaNacimiento());
+        }
+
         if (request.getTelefono() != null) paciente.setTelefono(request.getTelefono().trim());
         if (request.getTipoSangre() != null) paciente.setTipoSangre(request.getTipoSangre());
-        if (request.getObraSocialId() != null) paciente.setObraSocial(resolveObraSocial(request.getObraSocialId()));
-        if (request.getNumeroCarnet() != null) paciente.setNumeroCarnet(blankToNull(request.getNumeroCarnet()));
+        
+        // Manejo seguro de IDs (solo si son > 0)
+        if (request.getObraSocialId() != null && request.getObraSocialId() > 0) {
+            paciente.setObraSocial(resolveObraSocial(request.getObraSocialId()));
+        }
+        
+        paciente.setNumeroCarnet(blankToNull(request.getNumeroCarnet()));
+        
         if (request.getNumeroHistoriaClinica() != null && !request.getNumeroHistoriaClinica().isBlank()) {
             validarHistoriaClinicaUnica(request.getNumeroHistoriaClinica(), paciente.getId());
             paciente.setNumeroHistoriaClinica(request.getNumeroHistoriaClinica().trim());
         }
-        if (request.getInstitucionCabeceraId() != null) paciente.setInstitucionCabecera(resolveInstitucion(request.getInstitucionCabeceraId()));
-        if (request.getMedicoCabeceraProfesionalId() != null) paciente.setMedicoCabecera(resolveProfesional(request.getMedicoCabeceraProfesionalId()));
+        
+        if (request.getInstitucionCabeceraId() != null && request.getInstitucionCabeceraId() > 0) {
+            paciente.setInstitucionCabecera(resolveInstitucion(request.getInstitucionCabeceraId()));
+        } else if (request.getInstitucionCabeceraId() != null && request.getInstitucionCabeceraId() <= 0) {
+            paciente.setInstitucionCabecera(null);
+        }
+
+        if (request.getMedicoCabeceraProfesionalId() != null && request.getMedicoCabeceraProfesionalId() > 0) {
+            paciente.setMedicoCabecera(resolveProfesional(request.getMedicoCabeceraProfesionalId()));
+        } else if (request.getMedicoCabeceraProfesionalId() != null && request.getMedicoCabeceraProfesionalId() <= 0) {
+            paciente.setMedicoCabecera(null);
+        }
+
         return toPacienteResponse(pacienteRepository.save(paciente));
     }
 

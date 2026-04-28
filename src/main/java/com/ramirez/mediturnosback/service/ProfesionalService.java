@@ -7,6 +7,7 @@ import com.ramirez.mediturnosback.model.ProfesionalInstitucion;
 import com.ramirez.mediturnosback.repository.ProfesionalInstitucionRepository;
 import com.ramirez.mediturnosback.repository.ProfesionalRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
 import java.util.List;
@@ -23,13 +24,15 @@ public class ProfesionalService {
         this.profesionalInstitucionRepository = profesionalInstitucionRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<ProfesionalDto> listar(String especialidad, String filtro) {
         String especialidadFiltro = (especialidad == null || especialidad.isBlank()) ? null : especialidad.trim();
         String q = (filtro == null || filtro.isBlank()) ? null : filtro.trim();
         return profesionalInstitucionRepository.buscarDisponibles(especialidadFiltro, q)
                 .stream()
                 .sorted(Comparator.comparing((ProfesionalInstitucion pi) -> pi.getProfesional().getApellido(), String.CASE_INSENSITIVE_ORDER)
-                        .thenComparing(pi -> pi.getProfesional().getNombre(), String.CASE_INSENSITIVE_ORDER))
+                        .thenComparing(pi -> pi.getProfesional().getNombre(), String.CASE_INSENSITIVE_ORDER)
+                        .thenComparing(pi -> pi.getInstitucion().getNombre(), String.CASE_INSENSITIVE_ORDER))
                 .map(pi -> {
                     Profesional p = pi.getProfesional();
                     String especialidadNombre = p.getEspecialidades().stream()
@@ -61,15 +64,18 @@ public class ProfesionalService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
     public List<String> listarEspecialidades() {
         return profesionalRepository.listarNombresEspecialidades();
     }
 
+    @Transactional(readOnly = true)
     public Profesional obtenerPorId(Long id) {
         return profesionalRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Profesional no encontrado con id: " + id));
     }
 
+    @Transactional(readOnly = true)
     public Profesional obtenerPorUsuarioId(Long usuarioId) {
         return profesionalRepository.findByUsuario_Id(usuarioId)
                 .orElseThrow(() -> new ResourceNotFoundException("Profesional no encontrado para el usuario: " + usuarioId));

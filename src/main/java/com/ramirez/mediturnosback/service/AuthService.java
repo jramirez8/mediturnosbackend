@@ -35,7 +35,7 @@ public class AuthService {
                        ProfesionalRepository profesionalRepository,
                        VerificationDispatchService verificationDispatchService,
                        PasswordEncoder passwordEncoder,
-                       @Value("${app.base-url:http://localhost:8080}") String appBaseUrl) {
+                       @Value("${app.base-url:http://127.0.0.1:8080}") String appBaseUrl) {
         this.usuarioRepository = usuarioRepository;
         this.pacienteRepository = pacienteRepository;
         this.obraSocialRepository = obraSocialRepository;

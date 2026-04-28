@@ -59,8 +59,10 @@ public class PacienteService {
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente no encontrado con DNI: " + dni));
     }
 
+    @Transactional(readOnly = true)
     public PacientePerfilResponse obtenerPerfilPorUsuarioId(Long usuarioId) {
-        return mapPerfil(obtenerPorUsuarioId(usuarioId));
+        Paciente paciente = obtenerPorUsuarioId(usuarioId);
+        return mapPerfil(paciente);
     }
 
     @Transactional

@@ -24,7 +24,6 @@ public interface ProfesionalInstitucionRepository extends JpaRepository<Profesio
                    or lower(p.apellido) like lower(concat('%', :q, '%'))
                    or lower(concat(p.nombre, ' ', p.apellido)) like lower(concat('%', :q, '%'))
                    or lower(concat(p.apellido, ', ', p.nombre)) like lower(concat('%', :q, '%')))
-            order by p.apellido asc, p.nombre asc
             """)
     List<ProfesionalInstitucion> buscarDisponibles(@Param("especialidad") String especialidad,
                                                    @Param("q") String q);

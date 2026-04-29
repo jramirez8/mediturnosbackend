@@ -7,7 +7,14 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class MediturnosbackApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(MediturnosbackApplication.class, args);
+		try {
+			System.setProperty("java.net.preferIPv4Stack", "true");
+			System.setProperty("java.net.preferIPv4Addresses", "true");
+			SpringApplication.run(MediturnosbackApplication.class, args);
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
 	}
 
 }

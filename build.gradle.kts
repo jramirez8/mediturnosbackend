@@ -1,3 +1,5 @@
+import java.lang.System
+
 plugins {
 	java
 	application
@@ -40,6 +42,7 @@ dependencies {
 	annotationProcessor("org.projectlombok:lombok")
 
 	runtimeOnly("com.mysql:mysql-connector-j")
+	runtimeOnly("com.h2database:h2")
 
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
 	testImplementation("org.springframework.security:spring-security-test")
@@ -52,6 +55,14 @@ tasks.withType<Test> {
 	useJUnitPlatform()
 }
 
-tasks.withType<JavaExec> {
-	systemProperty("java.io.tmpdir", layout.buildDirectory.dir("tmp").get().asFile.absolutePath)
+tasks.withType<JavaExec>().configureEach {
+    // Estas líneas son críticas para solucionar el error 10106 en Windows
+    val systemRoot = System.getenv("SystemRoot") ?: "C:\\Windows"
+    val systemDrive = System.getenv("SystemDrive") ?: "C:"
+    environment("SystemRoot", systemRoot)
+    environment("SystemDrive", systemDrive)
+
+    systemProperty("java.io.tmpdir", layout.buildDirectory.dir("tmp").get().asFile.absolutePath)
+    systemProperty("java.net.preferIPv4Stack", "true")
+    systemProperty("java.net.preferIPv4Addresses", "true")
 }

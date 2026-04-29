@@ -1,5 +1,3 @@
-import java.lang.System
-
 plugins {
 	java
 	application
@@ -57,8 +55,8 @@ tasks.withType<Test> {
 
 tasks.withType<JavaExec>().configureEach {
     // Estas líneas son críticas para solucionar el error 10106 en Windows
-    val systemRoot = System.getenv("SystemRoot") ?: "C:\\Windows"
-    val systemDrive = System.getenv("SystemDrive") ?: "C:"
+    val systemRoot = project.providers.environmentVariable("SystemRoot").getOrElse("C:\\Windows")
+    val systemDrive = project.providers.environmentVariable("SystemDrive").getOrElse("C:")
     environment("SystemRoot", systemRoot)
     environment("SystemDrive", systemDrive)
 

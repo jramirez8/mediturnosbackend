@@ -26,7 +26,9 @@ public class AuthService {
     private final ProfesionalRepository profesionalRepository;
     private final VerificationDispatchService verificationDispatchService;
     private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
     private final String appBaseUrl;
+    private final boolean exposeResetToken;
 
     public AuthService(UsuarioRepository usuarioRepository,
                        PacienteRepository pacienteRepository,
@@ -35,7 +37,9 @@ public class AuthService {
                        ProfesionalRepository profesionalRepository,
                        VerificationDispatchService verificationDispatchService,
                        PasswordEncoder passwordEncoder,
-                       @Value("${app.base-url:http://127.0.0.1:8080}") String appBaseUrl) {
+                       JwtService jwtService,
+                       @Value("${app.base-url:http://127.0.0.1:8080}") String appBaseUrl,
+                       @Value("${app.auth.expose-reset-token:true}") boolean exposeResetToken) {
         this.usuarioRepository = usuarioRepository;
         this.pacienteRepository = pacienteRepository;
         this.obraSocialRepository = obraSocialRepository;
@@ -43,7 +47,9 @@ public class AuthService {
         this.profesionalRepository = profesionalRepository;
         this.verificationDispatchService = verificationDispatchService;
         this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
         this.appBaseUrl = appBaseUrl;
+        this.exposeResetToken = exposeResetToken;
     }
 
     @Transactional
@@ -84,13 +90,17 @@ public class AuthService {
         return new PacienteRegistroResponse(
                 guardado.getUsuario().getId(),
                 guardado.getId(),
-                "Cuenta creada. Revisá los logs del backend para ver el link de validación de correo.",
+                "Cuenta creada. Revisá el correo o los logs del backend para ver el link de validación.",
                 true
         );
     }
 
     public AuthLoginResponse login(AuthLoginRequest request) {
-        String identificador = request.getIdentificador().trim();
+        String identificador = request.resolverIdentificador();
+        if (identificador == null || identificador.isBlank()) {
+            throw new IllegalArgumentException("Ingresá email o DNI");
+        }
+
         Usuario usuario = usuarioRepository.findByEmailOrPacienteDni(identificador)
                 .orElseThrow(() -> new IllegalArgumentException("Credenciales inválidas"));
 
@@ -114,7 +124,22 @@ public class AuthService {
                 ? usuario.getSecretaria().getNombre() + " " + usuario.getSecretaria().getApellido()
                 : usuario.getEmail();
 
-        return new AuthLoginResponse(usuario.getId(), pacienteId, profesionalId, usuario.getRol(), usuario.getEmail(), nombreCompleto, usuario.getEmailVerificado(), "Inicio de sesión correcto");
+        String token = jwtService.generarToken(usuario);
+
+        return new AuthLoginResponse(
+                usuario.getId(),
+                pacienteId,
+                profesionalId,
+                usuario.getRol(),
+                usuario.getEmail(),
+                nombreCompleto,
+                Boolean.TRUE.equals(usuario.getEmailVerificado()),
+                "Inicio de sesión correcto",
+                token,
+                token,
+                token,
+                "Bearer"
+        );
     }
 
     @Transactional
@@ -133,28 +158,56 @@ public class AuthService {
     }
 
     @Transactional
-    public String solicitarRecuperacionPassword(ForgotPasswordRequest request) {
-        String identificador = request.getIdentificador().trim();
-        usuarioRepository.findByEmailOrPacienteDni(identificador).ifPresent(usuario -> {
-            usuario.setTokenRecuperacion(UUID.randomUUID().toString());
-            usuario.setTokenRecuperacionExpiraEn(LocalDateTime.now().plusHours(2));
-            usuarioRepository.save(usuario);
-            verificationDispatchService.enviarRecuperacionEmail(usuario, usuario.getTokenRecuperacion());
-        });
-        return "Si la cuenta existe, se generó una instrucción de recuperación. Revisá los logs del backend.";
+    public PasswordRecoveryResponse solicitarRecuperacionPassword(ForgotPasswordRequest request) {
+        String identificador = request.resolverIdentificador();
+        if (identificador == null || identificador.isBlank()) {
+            throw new IllegalArgumentException("Ingresá email o DNI");
+        }
+
+        return usuarioRepository.findByEmailOrPacienteDni(identificador)
+                .map(usuario -> {
+                    usuario.setTokenRecuperacion(UUID.randomUUID().toString());
+                    usuario.setTokenRecuperacionExpiraEn(LocalDateTime.now().plusHours(2));
+                    usuarioRepository.save(usuario);
+                    boolean emailEnviado = verificationDispatchService.enviarRecuperacionEmail(usuario, usuario.getTokenRecuperacion());
+                    String resetUrl = verificationDispatchService.generarResetUrl(usuario.getTokenRecuperacion());
+                    return new PasswordRecoveryResponse(
+                            emailEnviado
+                                    ? "Te enviamos un correo con instrucciones para recuperar la contraseña."
+                                    : "Modo demo: se generó un token de recuperación. También quedó en los logs del backend.",
+                            exposeResetToken ? usuario.getTokenRecuperacion() : null,
+                            exposeResetToken ? resetUrl : null,
+                            emailEnviado
+                    );
+                })
+                .orElseGet(() -> new PasswordRecoveryResponse(
+                        "Si la cuenta existe, se generó una instrucción de recuperación.",
+                        null,
+                        null,
+                        false
+                ));
     }
 
     @Transactional
     public String restablecerPassword(ResetPasswordRequest request) {
-        validarPasswords(request.getPassword(), request.getConfirmPassword());
-        Usuario usuario = usuarioRepository.findByTokenRecuperacion(request.getToken())
+        String password = request.resolverPassword();
+        String confirmPassword = request.resolverConfirmPassword();
+        validarPasswords(password, confirmPassword);
+
+        if (request.getToken() == null || request.getToken().isBlank()) {
+            throw new IllegalArgumentException("El token de recuperación es obligatorio");
+        }
+
+        Usuario usuario = usuarioRepository.findByTokenRecuperacion(request.getToken().trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Token de recuperación inválido"));
         if (usuario.getTokenRecuperacionExpiraEn() == null || usuario.getTokenRecuperacionExpiraEn().isBefore(LocalDateTime.now())) {
             throw new IllegalArgumentException("El token de recuperación expiró");
         }
-        usuario.setPasswordHash(passwordEncoder.encode(request.getPassword()));
+        usuario.setPasswordHash(passwordEncoder.encode(password));
         usuario.setTokenRecuperacion(null);
         usuario.setTokenRecuperacionExpiraEn(null);
+        usuario.setActivo(true);
+        usuario.setEmailVerificado(true);
         usuarioRepository.save(usuario);
         return "Contraseña actualizada correctamente";
     }

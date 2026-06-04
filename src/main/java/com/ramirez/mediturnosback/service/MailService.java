@@ -1,5 +1,7 @@
 package com.ramirez.mediturnosback.service;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -11,12 +13,14 @@ import java.util.Map;
 @Service
 public class MailService {
 
+    private static final Logger log = LoggerFactory.getLogger(MailService.class);
+
     private final RestClient restClient;
 
-    @Value("${BREVO_API_KEY}")
+    @Value("${BREVO_API_KEY:}")
     private String brevoApiKey;
 
-    @Value("${BREVO_SENDER_EMAIL}")
+    @Value("${BREVO_SENDER_EMAIL:${app.mail.from:}}")
     private String senderEmail;
 
     @Value("${BREVO_SENDER_NAME:Mediturnos}")
@@ -28,7 +32,18 @@ public class MailService {
                 .build();
     }
 
-    public void enviarEmail(String destinatario, String nombreDestinatario, String asunto, String html) {
+    public boolean enviarEmail(String destinatario, String nombreDestinatario, String asunto, String html) {
+        if (destinatario == null || destinatario.isBlank()) {
+            log.warn("Email no enviado: destinatario vacío. Asunto: {}", asunto);
+            return false;
+        }
+
+        if (brevoApiKey == null || brevoApiKey.isBlank() || senderEmail == null || senderEmail.isBlank()) {
+            log.warn("MODO DEMO EMAIL | Falta BREVO_API_KEY o BREVO_SENDER_EMAIL. No se envía correo real.");
+            log.info("MODO DEMO EMAIL | Para: {} | Asunto: {} | HTML: {}", destinatario, asunto, html);
+            return false;
+        }
+
         Map<String, Object> body = Map.of(
                 "sender", Map.of(
                         "name", senderName,
@@ -37,23 +52,30 @@ public class MailService {
                 "to", List.of(
                         Map.of(
                                 "email", destinatario,
-                                "name", nombreDestinatario != null ? nombreDestinatario : destinatario
+                                "name", nombreDestinatario != null && !nombreDestinatario.isBlank() ? nombreDestinatario : destinatario
                         )
                 ),
                 "subject", asunto,
                 "htmlContent", html
         );
 
-        restClient.post()
-                .uri("/smtp/email")
-                .header("api-key", brevoApiKey)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(body)
-                .retrieve()
-                .toBodilessEntity();
+        try {
+            restClient.post()
+                    .uri("/smtp/email")
+                    .header("api-key", brevoApiKey)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .body(body)
+                    .retrieve()
+                    .toBodilessEntity();
+            log.info("Email enviado por Brevo a {} con asunto '{}'", destinatario, asunto);
+            return true;
+        } catch (Exception ex) {
+            log.error("No se pudo enviar email por Brevo a {}: {}", destinatario, ex.getMessage(), ex);
+            return false;
+        }
     }
 
-    public void enviarCodigoVerificacion(String destinatario, String nombre, String codigo) {
+    public boolean enviarCodigoVerificacion(String destinatario, String nombre, String codigo) {
         String html = """
                 <html>
                   <body style="font-family: Arial, sans-serif;">
@@ -66,15 +88,10 @@ public class MailService {
                 </html>
                 """.formatted(nombre != null ? nombre : "", codigo);
 
-        enviarEmail(
-                destinatario,
-                nombre,
-                "Código de verificación - Mediturnos",
-                html
-        );
+        return enviarEmail(destinatario, nombre, "Código de verificación - Mediturnos", html);
     }
 
-    public void enviarTurnoConfirmado(String destinatario, String nombre, String detalleTurno) {
+    public boolean enviarTurnoConfirmado(String destinatario, String nombre, String detalleTurno) {
         String html = """
                 <html>
                   <body style="font-family: Arial, sans-serif;">
@@ -87,11 +104,6 @@ public class MailService {
                 </html>
                 """.formatted(nombre != null ? nombre : "", detalleTurno);
 
-        enviarEmail(
-                destinatario,
-                nombre,
-                "Turno confirmado - Mediturnos",
-                html
-        );
+        return enviarEmail(destinatario, nombre, "Turno confirmado - Mediturnos", html);
     }
 }

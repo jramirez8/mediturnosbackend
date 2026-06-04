@@ -49,6 +49,7 @@ public class GlobalExceptionHandler {
         body.put("timestamp", LocalDateTime.now());
         body.put("status", status.value());
         body.put("error", message);
+        body.put("message", message);
         if (details != null) {
             body.put("details", details);
         }

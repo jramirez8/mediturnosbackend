@@ -1,20 +1,29 @@
 package com.ramirez.mediturnosback.dto;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
 public class ResetPasswordRequest {
 
-    @NotBlank
     private String token;
 
-    @NotBlank
-    @Size(min = 8, max = 100)
+    /** Campos oficiales. */
     private String password;
-
-    @NotBlank
-    @Size(min = 8, max = 100)
     private String confirmPassword;
+
+    /** Alias tolerantes para frontends que usan otros nombres. */
+    private String newPassword;
+    private String confirmNewPassword;
+
+    public String resolverPassword() {
+        if (password != null && !password.isBlank()) return password;
+        if (newPassword != null && !newPassword.isBlank()) return newPassword;
+        return null;
+    }
+
+    public String resolverConfirmPassword() {
+        if (confirmPassword != null && !confirmPassword.isBlank()) return confirmPassword;
+        if (confirmNewPassword != null && !confirmNewPassword.isBlank()) return confirmNewPassword;
+        return null;
+    }
 }

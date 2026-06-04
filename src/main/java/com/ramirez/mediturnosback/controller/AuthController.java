@@ -33,12 +33,12 @@ public class AuthController {
     }
 
     @PostMapping("/forgot-password")
-    public SimpleMessageResponse forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
-        return new SimpleMessageResponse(authService.solicitarRecuperacionPassword(request));
+    public PasswordRecoveryResponse forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        return authService.solicitarRecuperacionPassword(request);
     }
 
     @PostMapping("/reset-password")
-    public SimpleMessageResponse resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+    public SimpleMessageResponse resetPassword(@RequestBody ResetPasswordRequest request) {
         return new SimpleMessageResponse(authService.restablecerPassword(request));
     }
 }

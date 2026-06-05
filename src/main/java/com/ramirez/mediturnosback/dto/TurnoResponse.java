@@ -36,6 +36,9 @@ public class TurnoResponse {
     private Long documentacionId;
     private String documentacionUrl;
     private Long documentacionSizeBytes;
+    private Boolean asistenciaConfirmada;
+    private LocalDateTime asistenciaConfirmadaEn;
+    private Boolean recordatorioTresHorasEnviado;
     private String motivoConsulta;
     private String enfermedadActual;
     private String antecedenteEnfermedadActual;

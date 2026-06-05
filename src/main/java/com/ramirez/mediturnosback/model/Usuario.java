@@ -52,6 +52,16 @@ public class Usuario {
     @JsonIgnore
     private LocalDateTime tokenRecuperacionExpiraEn;
 
+    @Column
+    private Boolean twoFactorEmailEnabled = false;
+
+    @JsonIgnore
+    @Column(length = 12)
+    private String twoFactorCode;
+
+    @JsonIgnore
+    private LocalDateTime twoFactorCodeExpiraEn;
+
     @JsonIgnore
     @OneToOne(mappedBy = "usuario", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     private Paciente paciente;

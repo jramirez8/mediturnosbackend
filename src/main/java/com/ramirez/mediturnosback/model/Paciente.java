@@ -98,6 +98,14 @@ public class Paciente {
     @Column(nullable = false)
     private Boolean activo = true;
 
+    @Column
+    private Boolean consentimientoDatosAceptado = false;
+
+    private java.time.LocalDateTime consentimientoDatosAceptadoEn;
+
+    @Column(length = 700)
+    private String consentimientoTexto;
+
     @JsonIgnore
     @OneToOne(fetch = FetchType.LAZY, optional = false, cascade = CascadeType.ALL)
     @JoinColumn(name = "usuario_id", nullable = false, unique = true)

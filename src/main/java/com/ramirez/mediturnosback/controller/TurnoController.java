@@ -91,6 +91,11 @@ public class TurnoController {
         return turnoService.actualizarEstado(id, request);
     }
 
+    @PutMapping("/{id}/confirmar-asistencia")
+    public TurnoResponse confirmarAsistencia(@PathVariable Long id) {
+        return turnoService.confirmarAsistencia(id);
+    }
+
     @PutMapping("/{id}/detalle-consulta")
     public TurnoResponse cargarDetalleConsulta(@PathVariable Long id, @RequestBody DetalleConsultaRequest request) {
         return turnoService.cargarDetalleConsulta(id, request);

@@ -17,6 +17,7 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class AuthService {
@@ -126,6 +127,23 @@ public class AuthService {
                 ? usuario.getSecretaria().getNombre() + " " + usuario.getSecretaria().getApellido()
                 : usuario.getEmail();
 
+        if (debeUsarSegundoFactor(usuario)) {
+            String codigo = String.format("%06d", ThreadLocalRandom.current().nextInt(0, 1_000_000));
+            usuario.setTwoFactorCode(codigo);
+            usuario.setTwoFactorCodeExpiraEn(LocalDateTime.now().plusMinutes(10));
+            usuarioRepository.save(usuario);
+            boolean enviado = verificationDispatchService.enviarCodigoDosFactores(usuario, codigo);
+            if (!enviado) {
+                throw new IllegalStateException("No se pudo enviar el código de verificación por email.");
+            }
+            return new AuthLoginResponse(
+                    usuario.getId(), pacienteId, profesionalId, usuario.getRol(), usuario.getEmail(), nombreCompleto,
+                    Boolean.TRUE.equals(usuario.getEmailVerificado()),
+                    "Te enviamos un código de verificación a tu correo.",
+                    null, null, null, "Bearer", true, ocultarEmail(usuario.getEmail())
+            );
+        }
+
         String token = jwtService.generarToken(usuario);
 
         return new AuthLoginResponse(
@@ -140,8 +158,56 @@ public class AuthService {
                 token,
                 token,
                 token,
-                "Bearer"
+                "Bearer",
+                false,
+                null
         );
+    }
+
+    @Transactional
+    public AuthLoginResponse verificarSegundoFactor(AuthTwoFactorVerifyRequest request) {
+        if (request.getUsuarioId() == null) throw new IllegalArgumentException("Falta usuario para validar 2FA");
+        if (request.getCodigo() == null || request.getCodigo().isBlank()) throw new IllegalArgumentException("Ingresá el código de verificación");
+        Usuario usuario = usuarioRepository.findById(request.getUsuarioId())
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+        if (usuario.getTwoFactorCode() == null || usuario.getTwoFactorCodeExpiraEn() == null) {
+            throw new IllegalArgumentException("No hay una verificación de segundo factor pendiente");
+        }
+        if (usuario.getTwoFactorCodeExpiraEn().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("El código de verificación expiró");
+        }
+        if (!usuario.getTwoFactorCode().equals(request.getCodigo().trim())) {
+            throw new IllegalArgumentException("Código de verificación inválido");
+        }
+
+        usuario.setTwoFactorCode(null);
+        usuario.setTwoFactorCodeExpiraEn(null);
+        usuarioRepository.save(usuario);
+
+        Long pacienteId = usuario.getPaciente() != null ? usuario.getPaciente().getId() : null;
+        Long profesionalId = usuario.getProfesional() != null ? usuario.getProfesional().getId() : null;
+        String nombreCompleto = usuario.getPaciente() != null
+                ? usuario.getPaciente().getNombre() + " " + usuario.getPaciente().getApellido()
+                : usuario.getProfesional() != null
+                ? usuario.getProfesional().getNombre() + " " + usuario.getProfesional().getApellido()
+                : usuario.getSecretaria() != null
+                ? usuario.getSecretaria().getNombre() + " " + usuario.getSecretaria().getApellido()
+                : usuario.getEmail();
+        String token = jwtService.generarToken(usuario);
+        return new AuthLoginResponse(usuario.getId(), pacienteId, profesionalId, usuario.getRol(), usuario.getEmail(), nombreCompleto,
+                Boolean.TRUE.equals(usuario.getEmailVerificado()), "Inicio de sesión correcto", token, token, token, "Bearer", false, null);
+    }
+
+    private boolean debeUsarSegundoFactor(Usuario usuario) {
+        return Boolean.TRUE.equals(usuario.getTwoFactorEmailEnabled()) || usuario.getRol() == RolUsuario.ADMIN;
+    }
+
+    private String ocultarEmail(String email) {
+        if (email == null || !email.contains("@")) return "tu email";
+        String[] parts = email.split("@", 2);
+        String left = parts[0];
+        String maskedLeft = left.length() <= 2 ? left.charAt(0) + "***" : left.substring(0, 2) + "***";
+        return maskedLeft + "@" + parts[1];
     }
 
     @Transactional

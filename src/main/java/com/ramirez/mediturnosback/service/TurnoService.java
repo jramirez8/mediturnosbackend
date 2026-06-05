@@ -8,6 +8,8 @@ import com.ramirez.mediturnosback.repository.EspecialidadRepository;
 import com.ramirez.mediturnosback.repository.PacienteRepository;
 import com.ramirez.mediturnosback.repository.ProfesionalInstitucionRepository;
 import com.ramirez.mediturnosback.repository.ProfesionalRepository;
+import com.ramirez.mediturnosback.repository.HorarioAtencionRepository;
+import com.ramirez.mediturnosback.repository.AgendaBloqueoRepository;
 import com.ramirez.mediturnosback.repository.TurnoAdjuntoRepository;
 import com.ramirez.mediturnosback.repository.TurnoRepository;
 import org.springframework.stereotype.Service;
@@ -42,6 +44,10 @@ public class TurnoService {
     private final TurnoAdjuntoRepository turnoAdjuntoRepository;
     private final VerificationDispatchService verificationDispatchService;
     private final MediaFileService mediaFileService;
+    private final HorarioAtencionRepository horarioAtencionRepository;
+    private final AgendaBloqueoRepository agendaBloqueoRepository;
+    private final ListaEsperaService listaEsperaService;
+    private final AuditService auditService;
 
     public TurnoService(TurnoRepository turnoRepository,
                         PacienteRepository pacienteRepository,
@@ -51,7 +57,11 @@ public class TurnoService {
                         ConsultaRepository consultaRepository,
                         TurnoAdjuntoRepository turnoAdjuntoRepository,
                         VerificationDispatchService verificationDispatchService,
-                        MediaFileService mediaFileService) {
+                        MediaFileService mediaFileService,
+                        HorarioAtencionRepository horarioAtencionRepository,
+                        AgendaBloqueoRepository agendaBloqueoRepository,
+                        ListaEsperaService listaEsperaService,
+                        AuditService auditService) {
         this.turnoRepository = turnoRepository;
         this.pacienteRepository = pacienteRepository;
         this.profesionalRepository = profesionalRepository;
@@ -61,6 +71,10 @@ public class TurnoService {
         this.turnoAdjuntoRepository = turnoAdjuntoRepository;
         this.verificationDispatchService = verificationDispatchService;
         this.mediaFileService = mediaFileService;
+        this.horarioAtencionRepository = horarioAtencionRepository;
+        this.agendaBloqueoRepository = agendaBloqueoRepository;
+        this.listaEsperaService = listaEsperaService;
+        this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
@@ -79,21 +93,40 @@ public class TurnoService {
         ProfesionalInstitucion pi = profesionalInstitucionRepository.findById(profesionalInstitucionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Sede profesional no encontrada con id: " + profesionalInstitucionId));
         LocalDateTime from = LocalDate.now().atStartOfDay();
-        LocalDateTime to = LocalDate.now().plusDays(20).atTime(LocalTime.MAX);
+        LocalDateTime to = LocalDate.now().plusDays(30).atTime(LocalTime.MAX);
         Set<LocalDateTime> ocupados = new HashSet<>();
         turnoRepository.findByProfesionalInstitucionIdAndFechaHoraInicioBetweenOrderByFechaHoraInicioAsc(pi.getId(), from, to)
                 .stream()
                 .filter(t -> t.getEstado() != EstadoTurno.CANCELADO && t.getEstado() != EstadoTurno.AUSENTE)
                 .forEach(t -> ocupados.add(t.getFechaHoraInicio()));
 
+        List<AgendaBloqueo> bloqueos = agendaBloqueoRepository.findBloqueosActivos(pi.getId(), from, to);
+        List<HorarioAtencion> horariosConfigurados = horarioAtencionRepository.findByProfesionalInstitucionIdAndActivoTrueOrderByDiaSemanaAscHoraDesdeAsc(pi.getId());
+
         List<DisponibilidadSlotResponse> slots = new ArrayList<>();
-        for (int dias = 1; dias <= 20; dias++) {
+        for (int dias = 1; dias <= 30; dias++) {
             LocalDate fecha = LocalDate.now().plusDays(dias);
-            if (fecha.getDayOfWeek().getValue() >= 6) continue;
-            for (LocalTime horario : HORARIOS_BASE) {
-                LocalDateTime fechaHora = fecha.atTime(horario);
-                if (!ocupados.contains(fechaHora)) {
-                    slots.add(new DisponibilidadSlotResponse(fecha.toString(), horario.toString(), fechaHora.toString()));
+            String dia = normalizarDia(fecha);
+
+            if (!horariosConfigurados.isEmpty()) {
+                for (HorarioAtencion horario : horariosConfigurados.stream().filter(h -> dia.equalsIgnoreCase(h.getDiaSemana())).toList()) {
+                    LocalTime cursor = horario.getHoraDesde();
+                    int duracion = horario.getDuracionTurnoMin() != null ? horario.getDuracionTurnoMin() : DURACION_MINUTOS;
+                    while (cursor.plusMinutes(duracion).compareTo(horario.getHoraHasta()) <= 0) {
+                        LocalDateTime fechaHora = fecha.atTime(cursor);
+                        if (!ocupados.contains(fechaHora) && !estaBloqueado(fechaHora, bloqueos)) {
+                            slots.add(new DisponibilidadSlotResponse(fecha.toString(), cursor.toString(), fechaHora.toString()));
+                        }
+                        cursor = cursor.plusMinutes(duracion);
+                    }
+                }
+            } else {
+                if (fecha.getDayOfWeek().getValue() >= 6) continue;
+                for (LocalTime horario : HORARIOS_BASE) {
+                    LocalDateTime fechaHora = fecha.atTime(horario);
+                    if (!ocupados.contains(fechaHora) && !estaBloqueado(fechaHora, bloqueos)) {
+                        slots.add(new DisponibilidadSlotResponse(fecha.toString(), horario.toString(), fechaHora.toString()));
+                    }
                 }
             }
         }
@@ -215,7 +248,26 @@ public class TurnoService {
     public TurnoResponse actualizarEstado(Long turnoId, TurnoEstadoUpdateRequest request) {
         Turno turno = obtenerEntidadPorId(turnoId);
         turno.setEstado(request.getEstado());
-        return mapTurno(turnoRepository.save(turno));
+        TurnoResponse response = mapTurno(turnoRepository.save(turno));
+        auditService.registrar("TURNO_ESTADO", "turnos", turnoId, "sistema", "Estado actualizado a " + request.getEstado());
+        if (request.getEstado() == EstadoTurno.CANCELADO) {
+            listaEsperaService.notificarPrimerPendienteCompatible(turno, response);
+        }
+        return response;
+    }
+
+    @Transactional
+    public TurnoResponse confirmarAsistencia(Long turnoId) {
+        Turno turno = obtenerEntidadPorId(turnoId);
+        if (turno.getEstado() == EstadoTurno.CANCELADO || turno.getEstado() == EstadoTurno.AUSENTE) {
+            throw new IllegalArgumentException("No se puede confirmar asistencia de un turno cancelado o ausente");
+        }
+        turno.setAsistenciaConfirmada(true);
+        turno.setAsistenciaConfirmadaEn(LocalDateTime.now());
+        turno.setEstado(EstadoTurno.CONFIRMADO);
+        TurnoResponse response = mapTurno(turnoRepository.save(turno));
+        auditService.registrar("TURNO_ASISTENCIA_CONFIRMADA", "turnos", turnoId, turno.getPaciente() != null && turno.getPaciente().getUsuario() != null ? turno.getPaciente().getUsuario().getEmail() : "paciente", "Paciente confirmó asistencia");
+        return response;
     }
 
     @Transactional
@@ -312,6 +364,9 @@ public class TurnoService {
                 adjunto != null ? adjunto.getId() : null,
                 adjuntoUrl(adjunto),
                 adjunto != null ? adjunto.getCompressedSizeBytes() : null,
+                turno.getAsistenciaConfirmada(),
+                turno.getAsistenciaConfirmadaEn(),
+                turno.getRecordatorioTresHorasEnviado(),
                 consulta != null ? consulta.getMotivoConsulta() : null,
                 consulta != null ? consulta.getEnfermedadActual() : null,
                 consulta != null ? consulta.getAntecedenteEnfermedadActual() : null,
@@ -328,6 +383,22 @@ public class TurnoService {
     private String adjuntoUrl(TurnoAdjunto adjunto) {
         if (adjunto == null || adjunto.getStoragePath() == null || adjunto.getStoragePath().isBlank()) return null;
         return "/api/turnos/adjuntos/" + adjunto.getId() + "/archivo";
+    }
+
+    private boolean estaBloqueado(LocalDateTime fechaHora, List<AgendaBloqueo> bloqueos) {
+        return bloqueos.stream().anyMatch(b -> !fechaHora.isBefore(b.getFechaDesde()) && fechaHora.isBefore(b.getFechaHasta()));
+    }
+
+    private String normalizarDia(LocalDate fecha) {
+        return switch (fecha.getDayOfWeek()) {
+            case MONDAY -> "LUNES";
+            case TUESDAY -> "MARTES";
+            case WEDNESDAY -> "MIERCOLES";
+            case THURSDAY -> "JUEVES";
+            case FRIDAY -> "VIERNES";
+            case SATURDAY -> "SABADO";
+            case SUNDAY -> "DOMINGO";
+        };
     }
 
     private String defaultIfBlank(String value, String defaultValue) { return value == null || value.isBlank() ? defaultValue : value; }

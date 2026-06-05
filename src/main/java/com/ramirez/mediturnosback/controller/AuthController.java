@@ -27,6 +27,11 @@ public class AuthController {
         return authService.login(request);
     }
 
+    @PostMapping("/2fa/verify")
+    public AuthLoginResponse verifyTwoFactor(@RequestBody AuthTwoFactorVerifyRequest request) {
+        return authService.verificarSegundoFactor(request);
+    }
+
     @PostMapping("/register/check")
     public RegistroDisponibilidadResponse checkRegistro(@Valid @RequestBody RegistroDisponibilidadRequest request) {
         return authService.validarDisponibilidadRegistro(request);

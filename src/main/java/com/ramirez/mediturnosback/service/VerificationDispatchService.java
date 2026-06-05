@@ -78,6 +78,46 @@ public class VerificationDispatchService {
         log.info("EMAIL TURNO | Para: {} | Turno: {} | enviado={}", emailDestino, turno.getId(), enviado);
     }
 
+    public boolean enviarRecordatorioTresHoras(TurnoResponse turno, String emailDestino) {
+        String detalle = "Profesional: " + turno.getProfesionalApellido() + ", " + turno.getProfesionalNombre()
+                + "<br/>Especialidad: " + turno.getEspecialidad()
+                + "<br/>Institución: " + turno.getInstitucionNombre()
+                + "<br/>Dirección: " + turno.getDireccionAtencion()
+                + "<br/>Fecha y hora: " + turno.getFechaHora();
+        String html = """
+                <html><body style=\"font-family: Arial, sans-serif;\">
+                <h2>Recordatorio de turno</h2>
+                <p>Tu turno es en aproximadamente 3 horas.</p>
+                <p><strong>%s</strong></p>
+                <p>Si no podés asistir, cancelalo o reprogramalo desde la app.</p>
+                </body></html>
+                """.formatted(detalle);
+        boolean enviado = mailService.enviarEmail(emailDestino, turno.getPacienteNombre(), "Mediturnos - Recordatorio de turno", html);
+        log.info("EMAIL RECORDATORIO 3H | Para: {} | Turno: {} | enviado={}", emailDestino, turno.getId(), enviado);
+        return enviado;
+    }
+
+    public boolean enviarAvisoListaEspera(String emailDestino, String nombre, TurnoResponse turnoLiberado) {
+        String html = """
+                <html><body style=\"font-family: Arial, sans-serif;\">
+                <h2>Se liberó un turno</h2>
+                <p>Hola %s,</p>
+                <p>Se liberó un horario compatible con tu lista de espera.</p>
+                <p><strong>%s - %s</strong></p>
+                <p>Ingresá a Mediturnos para tomarlo antes de que lo reserve otra persona.</p>
+                </body></html>
+                """.formatted(nombre != null ? nombre : "", turnoLiberado.getEspecialidad(), turnoLiberado.getFechaHora());
+        boolean enviado = mailService.enviarEmail(emailDestino, nombre, "Mediturnos - Turno disponible", html);
+        log.info("EMAIL LISTA ESPERA | Para: {} | Turno: {} | enviado={}", emailDestino, turnoLiberado.getId(), enviado);
+        return enviado;
+    }
+
+    public boolean enviarCodigoDosFactores(Usuario usuario, String codigo) {
+        boolean enviado = mailService.enviarCodigoVerificacion(usuario.getEmail(), usuario.getEmail(), codigo);
+        log.info("EMAIL 2FA | Para: {} | enviado={}", usuario.getEmail(), enviado);
+        return enviado;
+    }
+
     public String generarResetUrl(String resetToken) {
         String base = frontendResetUrl != null && !frontendResetUrl.isBlank()
                 ? frontendResetUrl

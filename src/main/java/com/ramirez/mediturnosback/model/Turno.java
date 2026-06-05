@@ -37,6 +37,16 @@ public class Turno {
     @Column(name = "observaciones_paciente")
     private String observacionesPaciente;
 
+    @Column
+    private Boolean asistenciaConfirmada = false;
+
+    private LocalDateTime asistenciaConfirmadaEn;
+
+    @Column
+    private Boolean recordatorioTresHorasEnviado = false;
+
+    private LocalDateTime recordatorioTresHorasEnviadoEn;
+
     @ManyToOne(optional = false)
     @JoinColumn(name = "paciente_id", nullable = false)
     @JsonIgnoreProperties({"usuario", "fotoPerfilBase64", "carnetObraSocialBase64"})

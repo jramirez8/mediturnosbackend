@@ -17,14 +17,10 @@ public class AuthLoginResponse {
     private String nombreCompleto;
     private boolean emailVerificado;
     private String mensaje;
-
-    /**
-     * Token JWT para que el front no falle esperando token/accessToken/jwt.
-     * Aunque hoy el SecurityConfig deja endpoints abiertos para demo, el cliente
-     * ya queda preparado para Authorization: Bearer.
-     */
     private String token;
     private String accessToken;
     private String jwt;
     private String tokenType;
+    private Boolean requiereSegundoFactor;
+    private String segundoFactorDestino;
 }

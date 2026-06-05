@@ -209,12 +209,7 @@ public class AuthService {
                             true
                     );
                 })
-                .orElseGet(() -> new PasswordRecoveryResponse(
-                        "Si la cuenta existe, se generó una instrucción de recuperación.",
-                        null,
-                        null,
-                        false
-                ));
+                .orElseThrow(() -> new IllegalArgumentException("No encontramos una cuenta registrada con ese DNI o email."));
     }
 
     @Transactional

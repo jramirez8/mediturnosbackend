@@ -16,6 +16,7 @@ import com.ramirez.mediturnosback.repository.ProfesionalRepository;
 import com.ramirez.mediturnosback.repository.UsuarioRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -27,17 +28,20 @@ public class PacienteService {
     private final UsuarioRepository usuarioRepository;
     private final InstitucionRepository institucionRepository;
     private final ProfesionalRepository profesionalRepository;
+    private final MediaFileService mediaFileService;
 
     public PacienteService(PacienteRepository pacienteRepository,
                            ObraSocialRepository obraSocialRepository,
                            UsuarioRepository usuarioRepository,
                            InstitucionRepository institucionRepository,
-                           ProfesionalRepository profesionalRepository) {
+                           ProfesionalRepository profesionalRepository,
+                           MediaFileService mediaFileService) {
         this.pacienteRepository = pacienteRepository;
         this.obraSocialRepository = obraSocialRepository;
         this.usuarioRepository = usuarioRepository;
         this.institucionRepository = institucionRepository;
         this.profesionalRepository = profesionalRepository;
+        this.mediaFileService = mediaFileService;
     }
 
     public List<Paciente> listarTodos() {
@@ -117,6 +121,30 @@ public class PacienteService {
     }
 
     @Transactional
+    public PacientePerfilResponse actualizarFotoPerfil(Long usuarioId, MultipartFile file) {
+        Paciente paciente = obtenerPorUsuarioId(usuarioId);
+        MediaFileService.StoredImage stored = mediaFileService.storeCompressedImage(file, "pacientes/foto-perfil", paciente.getId());
+        mediaFileService.deleteQuietly(paciente.getFotoPerfilPath());
+        paciente.setFotoPerfilPath(stored.relativePath());
+        paciente.setFotoPerfilMimeType(stored.mimeType());
+        paciente.setFotoPerfilSizeBytes(stored.compressedSizeBytes());
+        paciente.setFotoPerfilBase64(null);
+        return mapPerfil(pacienteRepository.save(paciente));
+    }
+
+    @Transactional
+    public PacientePerfilResponse actualizarCarnetObraSocial(Long usuarioId, MultipartFile file) {
+        Paciente paciente = obtenerPorUsuarioId(usuarioId);
+        MediaFileService.StoredImage stored = mediaFileService.storeCompressedImage(file, "pacientes/carnet-obra-social", paciente.getId());
+        mediaFileService.deleteQuietly(paciente.getCarnetObraSocialPath());
+        paciente.setCarnetObraSocialPath(stored.relativePath());
+        paciente.setCarnetObraSocialMimeType(stored.mimeType());
+        paciente.setCarnetObraSocialSizeBytes(stored.compressedSizeBytes());
+        paciente.setCarnetObraSocialBase64(null);
+        return mapPerfil(pacienteRepository.save(paciente));
+    }
+
+    @Transactional
     public void eliminar(Long id) {
         pacienteRepository.delete(obtenerPorId(id));
     }
@@ -184,7 +212,11 @@ public class PacienteService {
                 paciente.getDoctorCabecera(),
                 paciente.getUsuario().getEmailVerificado(),
                 paciente.getFotoPerfilBase64(),
-                paciente.getCarnetObraSocialBase64()
+                paciente.getCarnetObraSocialBase64(),
+                paciente.getFotoPerfilPath() != null ? "/api/pacientes/" + paciente.getId() + "/foto-perfil" : null,
+                paciente.getCarnetObraSocialPath() != null ? "/api/pacientes/" + paciente.getId() + "/carnet-obra-social" : null,
+                paciente.getFotoPerfilSizeBytes(),
+                paciente.getCarnetObraSocialSizeBytes()
         );
     }
 }

@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -59,15 +60,15 @@ public class MailService {
         );
 
         try {
-            restClient.post()
+            ResponseEntity<Void> response = restClient.post()
                     .uri("/smtp/email")
                     .header("api-key", brevoApiKey)
                     .contentType(MediaType.APPLICATION_JSON)
                     .body(body)
                     .retrieve()
                     .toBodilessEntity();
-            log.info("Email enviado por Brevo a {} con asunto '{}'", destinatario, asunto);
-            return true;
+            log.info("Brevo aceptó email a {} con asunto '{}' | status={}", destinatario, asunto, response.getStatusCode());
+            return response.getStatusCode().is2xxSuccessful();
         } catch (Exception ex) {
             log.error("No se pudo enviar email por Brevo a {}: {}", destinatario, ex.getMessage(), ex);
             return false;

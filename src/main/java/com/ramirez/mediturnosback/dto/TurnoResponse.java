@@ -33,6 +33,9 @@ public class TurnoResponse {
     private String documentacionNombreArchivo;
     private String documentacionMimeType;
     private String documentacionBase64;
+    private Long documentacionId;
+    private String documentacionUrl;
+    private Long documentacionSizeBytes;
     private String motivoConsulta;
     private String enfermedadActual;
     private String antecedenteEnfermedadActual;

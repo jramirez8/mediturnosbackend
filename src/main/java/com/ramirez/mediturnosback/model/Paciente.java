@@ -64,6 +64,22 @@ public class Paciente {
     @Column(columnDefinition = "LONGTEXT")
     private String carnetObraSocialBase64;
 
+    @Column(length = 700)
+    private String fotoPerfilPath;
+
+    @Column(length = 120)
+    private String fotoPerfilMimeType;
+
+    private Long fotoPerfilSizeBytes;
+
+    @Column(length = 700)
+    private String carnetObraSocialPath;
+
+    @Column(length = 120)
+    private String carnetObraSocialMimeType;
+
+    private Long carnetObraSocialSizeBytes;
+
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "obra_social_id", nullable = false)
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})

@@ -31,4 +31,8 @@ public class PacientePerfilResponse {
     private Boolean emailVerificado;
     private String fotoPerfilBase64;
     private String carnetObraSocialBase64;
+    private String fotoPerfilUrl;
+    private String carnetObraSocialUrl;
+    private Long fotoPerfilSizeBytes;
+    private Long carnetObraSocialSizeBytes;
 }

@@ -2,10 +2,17 @@ package com.ramirez.mediturnosback.controller;
 
 import com.ramirez.mediturnosback.dto.*;
 import com.ramirez.mediturnosback.service.TurnoService;
+import com.ramirez.mediturnosback.service.MediaFileService;
+import com.ramirez.mediturnosback.model.TurnoAdjunto;
 import com.ramirez.mediturnosback.service.JwtService;
 import jakarta.validation.Valid;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -15,10 +22,12 @@ public class TurnoController {
 
     private final TurnoService turnoService;
     private final JwtService jwtService;
+    private final MediaFileService mediaFileService;
 
-    public TurnoController(TurnoService turnoService, JwtService jwtService) {
+    public TurnoController(TurnoService turnoService, JwtService jwtService, MediaFileService mediaFileService) {
         this.turnoService = turnoService;
         this.jwtService = jwtService;
+        this.mediaFileService = mediaFileService;
     }
 
     @GetMapping
@@ -54,6 +63,23 @@ public class TurnoController {
     @PostMapping("/solicitar")
     @ResponseStatus(HttpStatus.CREATED)
     public TurnoResponse solicitar(@Valid @RequestBody TurnoSolicitudRequest request) { return turnoService.solicitar(request); }
+
+
+    @PostMapping(value = "/{id}/adjuntos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public FileUploadResponse adjuntarDocumentacion(@PathVariable Long id, @RequestPart("file") MultipartFile file) {
+        return turnoService.adjuntarDocumentacion(id, file);
+    }
+
+    @GetMapping("/adjuntos/{adjuntoId}/archivo")
+    public ResponseEntity<Resource> descargarAdjunto(@PathVariable Long adjuntoId) {
+        TurnoAdjunto adjunto = turnoService.obtenerAdjunto(adjuntoId);
+        Resource resource = mediaFileService.loadAsResource(adjunto.getStoragePath());
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(adjunto.getStorageMimeType() != null ? adjunto.getStorageMimeType() : "image/jpeg"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + adjunto.getNombreArchivo() + "\"")
+                .body(resource);
+    }
 
     @PutMapping("/{id}/reprogramar")
     public TurnoResponse reprogramar(@PathVariable Long id, @Valid @RequestBody TurnoReprogramacionRequest request) {

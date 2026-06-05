@@ -36,6 +36,16 @@ public class TurnoAdjunto {
     @Column(columnDefinition = "LONGTEXT")
     private String contenidoBase64;
 
+    @Column(length = 700)
+    private String storagePath;
+
+    @Column(length = 120)
+    private String storageMimeType;
+
+    private Long originalSizeBytes;
+
+    private Long compressedSizeBytes;
+
     @Column(nullable = false)
     private LocalDateTime creadoEn = LocalDateTime.now();
 }

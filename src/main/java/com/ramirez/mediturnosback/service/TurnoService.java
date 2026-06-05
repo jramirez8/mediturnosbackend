@@ -12,6 +12,7 @@ import com.ramirez.mediturnosback.repository.TurnoAdjuntoRepository;
 import com.ramirez.mediturnosback.repository.TurnoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -40,6 +41,7 @@ public class TurnoService {
     private final ConsultaRepository consultaRepository;
     private final TurnoAdjuntoRepository turnoAdjuntoRepository;
     private final VerificationDispatchService verificationDispatchService;
+    private final MediaFileService mediaFileService;
 
     public TurnoService(TurnoRepository turnoRepository,
                         PacienteRepository pacienteRepository,
@@ -48,7 +50,8 @@ public class TurnoService {
                         EspecialidadRepository especialidadRepository,
                         ConsultaRepository consultaRepository,
                         TurnoAdjuntoRepository turnoAdjuntoRepository,
-                        VerificationDispatchService verificationDispatchService) {
+                        VerificationDispatchService verificationDispatchService,
+                        MediaFileService mediaFileService) {
         this.turnoRepository = turnoRepository;
         this.pacienteRepository = pacienteRepository;
         this.profesionalRepository = profesionalRepository;
@@ -57,6 +60,7 @@ public class TurnoService {
         this.consultaRepository = consultaRepository;
         this.turnoAdjuntoRepository = turnoAdjuntoRepository;
         this.verificationDispatchService = verificationDispatchService;
+        this.mediaFileService = mediaFileService;
     }
 
     @Transactional(readOnly = true)
@@ -151,6 +155,39 @@ public class TurnoService {
                 : null;
         verificationDispatchService.enviarConfirmacionTurno(response, emailPaciente);
         return response;
+    }
+
+    @Transactional
+    public FileUploadResponse adjuntarDocumentacion(Long turnoId, MultipartFile file) {
+        Turno turno = obtenerEntidadPorId(turnoId);
+        MediaFileService.StoredImage stored = mediaFileService.storeCompressedImage(file, "turnos", turnoId);
+
+        TurnoAdjunto adjunto = new TurnoAdjunto();
+        adjunto.setTurno(turno);
+        adjunto.setNombreArchivo(stored.originalName());
+        adjunto.setMimeType(stored.mimeType());
+        adjunto.setStorageMimeType(stored.mimeType());
+        adjunto.setStoragePath(stored.relativePath());
+        adjunto.setOriginalSizeBytes(stored.originalSizeBytes());
+        adjunto.setCompressedSizeBytes(stored.compressedSizeBytes());
+        TurnoAdjunto guardado = turnoAdjuntoRepository.save(adjunto);
+        turno.getAdjuntos().add(guardado);
+
+        return new FileUploadResponse(
+                guardado.getId(),
+                guardado.getNombreArchivo(),
+                guardado.getMimeType(),
+                guardado.getOriginalSizeBytes(),
+                guardado.getCompressedSizeBytes(),
+                adjuntoUrl(guardado),
+                "Documentación adjuntada y comprimida correctamente"
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public TurnoAdjunto obtenerAdjunto(Long adjuntoId) {
+        return turnoAdjuntoRepository.findById(adjuntoId)
+                .orElseThrow(() -> new ResourceNotFoundException("Adjunto no encontrado con id: " + adjuntoId));
     }
 
     @Transactional
@@ -272,6 +309,9 @@ public class TurnoService {
                 adjunto != null ? adjunto.getNombreArchivo() : null,
                 adjunto != null ? adjunto.getMimeType() : null,
                 adjunto != null ? adjunto.getContenidoBase64() : null,
+                adjunto != null ? adjunto.getId() : null,
+                adjuntoUrl(adjunto),
+                adjunto != null ? adjunto.getCompressedSizeBytes() : null,
                 consulta != null ? consulta.getMotivoConsulta() : null,
                 consulta != null ? consulta.getEnfermedadActual() : null,
                 consulta != null ? consulta.getAntecedenteEnfermedadActual() : null,
@@ -283,6 +323,11 @@ public class TurnoService {
                 consulta != null ? consulta.getHallazgosExamenFisico() : null,
                 consulta != null ? consulta.getConducta() : null
         );
+    }
+
+    private String adjuntoUrl(TurnoAdjunto adjunto) {
+        if (adjunto == null || adjunto.getStoragePath() == null || adjunto.getStoragePath().isBlank()) return null;
+        return "/api/turnos/adjuntos/" + adjunto.getId() + "/archivo";
     }
 
     private String defaultIfBlank(String value, String defaultValue) { return value == null || value.isBlank() ? defaultValue : value; }

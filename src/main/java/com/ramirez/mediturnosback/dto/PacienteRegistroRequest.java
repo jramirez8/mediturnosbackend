@@ -22,7 +22,7 @@ public class PacienteRegistroRequest {
     @NotNull private Long obraSocialId;
     @NotNull private TipoSangre tipoSangre;
     @Size(max = 100) private String numeroCarnet;
-    @NotBlank @Size(max = 50) private String numeroHistoriaClinica;
+    @Size(max = 50) private String numeroHistoriaClinica;
     @Size(max = 150) private String hospitalClinicaCabecera;
     @Size(max = 150) private String doctorCabecera;
     @NotNull @Past @JsonFormat(pattern = "yyyy-MM-dd") private LocalDate fechaNacimiento;

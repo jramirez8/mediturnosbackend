@@ -45,8 +45,8 @@ public class VerificationDispatchService {
     }
 
     public void enviarValidacionWhatsapp(Paciente paciente, String verificationCode) {
-        log.info("SIMULACION ENVIO WHATSAPP | Para: {} | Paciente: {} {} | Codigo sugerido: {}",
-                paciente.getTelefono(), paciente.getNombre(), paciente.getApellido(), verificationCode);
+        log.info("WHATSAPP no implementado | Para: {} | Paciente: {} {}",
+                paciente.getTelefono(), paciente.getNombre(), paciente.getApellido());
     }
 
     public boolean enviarRecuperacionEmail(Usuario usuario, String resetToken) {
@@ -64,7 +64,7 @@ public class VerificationDispatchService {
                 </body></html>
                 """.formatted(resetToken, resetUrl, resetUrl);
         boolean enviado = mailService.enviarEmail(usuario.getEmail(), usuario.getEmail(), "Mediturnos - Recuperación de contraseña", html);
-        log.info("RESET PASSWORD | Para: {} | Token: {} | Link: {} | enviado={}", usuario.getEmail(), resetToken, resetUrl, enviado);
+        log.info("RESET PASSWORD | Para: {} | Link: {} | enviado={}", usuario.getEmail(), resetUrl, enviado);
         return enviado;
     }
 

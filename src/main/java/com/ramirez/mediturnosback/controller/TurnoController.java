@@ -2,6 +2,7 @@ package com.ramirez.mediturnosback.controller;
 
 import com.ramirez.mediturnosback.dto.*;
 import com.ramirez.mediturnosback.service.TurnoService;
+import com.ramirez.mediturnosback.service.JwtService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
@@ -13,8 +14,12 @@ import java.util.List;
 public class TurnoController {
 
     private final TurnoService turnoService;
+    private final JwtService jwtService;
 
-    public TurnoController(TurnoService turnoService) { this.turnoService = turnoService; }
+    public TurnoController(TurnoService turnoService, JwtService jwtService) {
+        this.turnoService = turnoService;
+        this.jwtService = jwtService;
+    }
 
     @GetMapping
     public List<TurnoResponse> listarTodos() { return turnoService.listarTodos(); }
@@ -22,8 +27,21 @@ public class TurnoController {
     @GetMapping("/{id}")
     public TurnoResponse obtenerPorId(@PathVariable Long id) { return turnoService.obtenerPorId(id); }
 
+    @GetMapping("/paciente/me")
+    public List<TurnoResponse> listarTurnosPacienteActual(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        Long pacienteId = jwtService.extraerPacienteIdDesdeAuthorization(authorization);
+        if (pacienteId == null) throw new IllegalArgumentException("El token no corresponde a un paciente");
+        return turnoService.listarPorPaciente(pacienteId);
+    }
+
     @GetMapping("/paciente/{pacienteId}")
     public List<TurnoResponse> listarPorPaciente(@PathVariable Long pacienteId) { return turnoService.listarPorPaciente(pacienteId); }
+
+    @GetMapping("/historia-clinica/me")
+    public List<TurnoResponse> listarHistoriaClinicaActual(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        Long usuarioId = jwtService.extraerUsuarioIdDesdeAuthorization(authorization);
+        return turnoService.listarHistoriaClinica(usuarioId);
+    }
 
     @GetMapping("/historia-clinica/{usuarioId}")
     public List<TurnoResponse> listarHistoriaClinica(@PathVariable Long usuarioId) { return turnoService.listarHistoriaClinica(usuarioId); }

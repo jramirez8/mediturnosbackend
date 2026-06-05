@@ -27,6 +27,11 @@ public class AuthController {
         return authService.login(request);
     }
 
+    @PostMapping("/register/check")
+    public RegistroDisponibilidadResponse checkRegistro(@Valid @RequestBody RegistroDisponibilidadRequest request) {
+        return authService.validarDisponibilidadRegistro(request);
+    }
+
     @GetMapping("/verificar-email")
     public SimpleMessageResponse verificarEmail(@RequestParam String token) {
         return new SimpleMessageResponse(authService.verificarEmail(token));

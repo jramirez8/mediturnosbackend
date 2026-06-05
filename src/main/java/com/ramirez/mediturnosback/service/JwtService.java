@@ -1,6 +1,7 @@
 package com.ramirez.mediturnosback.service;
 
 import com.ramirez.mediturnosback.model.Usuario;
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -41,5 +42,47 @@ public class JwtService {
                 .expiration(Date.from(now.plusSeconds(expirationSeconds)))
                 .signWith(key)
                 .compact();
+    }
+
+    public Claims parsearClaimsDesdeAuthorization(String authorizationHeader) {
+        String token = extraerBearerToken(authorizationHeader);
+        return Jwts.parser()
+                .verifyWith(key)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
+    public Long extraerUsuarioIdDesdeAuthorization(String authorizationHeader) {
+        return leerLongClaim(parsearClaimsDesdeAuthorization(authorizationHeader), "usuarioId");
+    }
+
+    public Long extraerPacienteIdDesdeAuthorization(String authorizationHeader) {
+        return leerLongClaim(parsearClaimsDesdeAuthorization(authorizationHeader), "pacienteId");
+    }
+
+    private String extraerBearerToken(String authorizationHeader) {
+        if (authorizationHeader == null || authorizationHeader.isBlank()) {
+            throw new IllegalArgumentException("Falta header Authorization Bearer");
+        }
+        String value = authorizationHeader.trim();
+        if (value.regionMatches(true, 0, "Bearer ", 0, 7)) {
+            value = value.substring(7).trim();
+        }
+        if (value.isBlank()) {
+            throw new IllegalArgumentException("Token JWT vacío");
+        }
+        return value;
+    }
+
+    private Long leerLongClaim(Claims claims, String key) {
+        Object value = claims.get(key);
+        if (value == null) return null;
+        if (value instanceof Number number) return number.longValue();
+        try {
+            return Long.valueOf(String.valueOf(value));
+        } catch (NumberFormatException ex) {
+            throw new IllegalArgumentException("Claim JWT inválido: " + key);
+        }
     }
 }

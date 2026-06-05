@@ -39,8 +39,7 @@ public class MailService {
         }
 
         if (brevoApiKey == null || brevoApiKey.isBlank() || senderEmail == null || senderEmail.isBlank()) {
-            log.warn("MODO DEMO EMAIL | Falta BREVO_API_KEY o BREVO_SENDER_EMAIL. No se envía correo real.");
-            log.info("MODO DEMO EMAIL | Para: {} | Asunto: {} | HTML: {}", destinatario, asunto, html);
+            log.error("Email no enviado: falta BREVO_API_KEY o BREVO_SENDER_EMAIL. No se expone token al frontend.");
             return false;
         }
 

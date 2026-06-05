@@ -5,20 +5,24 @@ import com.ramirez.mediturnosback.dto.PacientePerfilUpdateRequest;
 import com.ramirez.mediturnosback.dto.PacienteUpdateRequest;
 import com.ramirez.mediturnosback.model.Paciente;
 import com.ramirez.mediturnosback.service.PacienteService;
+import com.ramirez.mediturnosback.service.JwtService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/pacientes")
 public class PacienteController {
 
     private final PacienteService pacienteService;
+    private final JwtService jwtService;
 
-    public PacienteController(PacienteService pacienteService) {
+    public PacienteController(PacienteService pacienteService, JwtService jwtService) {
         this.pacienteService = pacienteService;
+        this.jwtService = jwtService;
     }
 
     @GetMapping
@@ -37,13 +41,31 @@ public class PacienteController {
     }
 
     @GetMapping("/usuario/{usuarioId}")
-    public Paciente obtenerPorUsuario(@PathVariable Long usuarioId) {
-        return pacienteService.obtenerPorUsuarioId(usuarioId);
+    public Map<String, Long> obtenerPorUsuario(@PathVariable Long usuarioId) {
+        Paciente paciente = pacienteService.obtenerPorUsuarioId(usuarioId);
+        return Map.of(
+                "id", paciente.getId(),
+                "pacienteId", paciente.getId(),
+                "usuarioId", usuarioId
+        );
+    }
+
+    @GetMapping("/perfil/me")
+    public PacientePerfilResponse obtenerPerfilActual(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        Long usuarioId = jwtService.extraerUsuarioIdDesdeAuthorization(authorization);
+        return pacienteService.obtenerPerfilPorUsuarioId(usuarioId);
     }
 
     @GetMapping("/perfil/{usuarioId}")
     public PacientePerfilResponse obtenerPerfil(@PathVariable Long usuarioId) {
         return pacienteService.obtenerPerfilPorUsuarioId(usuarioId);
+    }
+
+    @PutMapping("/perfil/me")
+    public PacientePerfilResponse actualizarPerfilActual(@RequestHeader(value = "Authorization", required = false) String authorization,
+                                                         @Valid @RequestBody PacientePerfilUpdateRequest request) {
+        Long usuarioId = jwtService.extraerUsuarioIdDesdeAuthorization(authorization);
+        return pacienteService.actualizarPerfil(usuarioId, request);
     }
 
     @PutMapping("/perfil/{usuarioId}")

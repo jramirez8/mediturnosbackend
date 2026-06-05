@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -39,7 +41,7 @@ public class AuthService {
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
                        @Value("${app.base-url:http://127.0.0.1:8080}") String appBaseUrl,
-                       @Value("${app.auth.expose-reset-token:true}") boolean exposeResetToken) {
+                       @Value("${app.auth.expose-reset-token:false}") boolean exposeResetToken) {
         this.usuarioRepository = usuarioRepository;
         this.pacienteRepository = pacienteRepository;
         this.obraSocialRepository = obraSocialRepository;
@@ -77,7 +79,7 @@ public class AuthService {
         paciente.setTelefono(request.getTelefono().trim());
         paciente.setTipoSangre(request.getTipoSangre());
         paciente.setNumeroCarnet(normalizarOpcional(request.getNumeroCarnet()));
-        paciente.setNumeroHistoriaClinica(request.getNumeroHistoriaClinica().trim());
+        paciente.setNumeroHistoriaClinica(generarNumeroHistoriaClinica());
         paciente.setInstitucionCabecera(resolverInstitucionPorNombre(request.getHospitalClinicaCabecera()));
         paciente.setMedicoCabecera(resolverProfesionalPorNombre(request.getDoctorCabecera()));
         paciente.setObraSocial(obraSocial);
@@ -90,7 +92,7 @@ public class AuthService {
         return new PacienteRegistroResponse(
                 guardado.getUsuario().getId(),
                 guardado.getId(),
-                "Cuenta creada. Revisá el correo o los logs del backend para ver el link de validación.",
+                "Cuenta creada. Revisá tu correo para activar la cuenta.",
                 true
         );
     }
@@ -157,6 +159,33 @@ public class AuthService {
         return "Cuenta verificada correctamente";
     }
 
+    public RegistroDisponibilidadResponse validarDisponibilidadRegistro(RegistroDisponibilidadRequest request) {
+        String dni = request.getDni().trim();
+        String email = request.getEmail().trim();
+        String telefono = request.getTelefono().trim();
+
+        boolean dniRegistrado = pacienteRepository.existsByDni(dni);
+        boolean emailRegistrado = usuarioRepository.existsByEmailIgnoreCase(email);
+        boolean telefonoRegistrado = pacienteRepository.existsByTelefono(telefono);
+
+        List<String> conflictos = new ArrayList<>();
+        if (dniRegistrado) conflictos.add("DNI");
+        if (emailRegistrado) conflictos.add("email");
+        if (telefonoRegistrado) conflictos.add("teléfono");
+
+        boolean disponible = conflictos.isEmpty();
+        return new RegistroDisponibilidadResponse(
+                disponible,
+                dniRegistrado,
+                emailRegistrado,
+                telefonoRegistrado,
+                conflictos,
+                disponible
+                        ? "Los datos están disponibles para registrar una cuenta."
+                        : "Ya existe una cuenta registrada con " + String.join(", ", conflictos) + "."
+        );
+    }
+
     @Transactional
     public PasswordRecoveryResponse solicitarRecuperacionPassword(ForgotPasswordRequest request) {
         String identificador = request.resolverIdentificador();
@@ -170,14 +199,14 @@ public class AuthService {
                     usuario.setTokenRecuperacionExpiraEn(LocalDateTime.now().plusHours(2));
                     usuarioRepository.save(usuario);
                     boolean emailEnviado = verificationDispatchService.enviarRecuperacionEmail(usuario, usuario.getTokenRecuperacion());
-                    String resetUrl = verificationDispatchService.generarResetUrl(usuario.getTokenRecuperacion());
+                    if (!emailEnviado) {
+                        throw new IllegalStateException("No se pudo enviar el correo de recuperación. Revisá la configuración de Brevo.");
+                    }
                     return new PasswordRecoveryResponse(
-                            emailEnviado
-                                    ? "Te enviamos un correo con instrucciones para recuperar la contraseña."
-                                    : "Modo demo: se generó un token de recuperación. También quedó en los logs del backend.",
+                            "Te enviamos un correo con instrucciones para recuperar la contraseña.",
                             exposeResetToken ? usuario.getTokenRecuperacion() : null,
-                            exposeResetToken ? resetUrl : null,
-                            emailEnviado
+                            exposeResetToken ? verificationDispatchService.generarResetUrl(usuario.getTokenRecuperacion()) : null,
+                            true
                     );
                 })
                 .orElseGet(() -> new PasswordRecoveryResponse(
@@ -222,14 +251,23 @@ public class AuthService {
 
     private void validarDatosUnicosRegistro(PacienteRegistroRequest request) {
         if (usuarioRepository.existsByEmailIgnoreCase(request.getEmail().trim())) {
-            throw new IllegalArgumentException("Ya existe un usuario con ese email");
+            throw new IllegalArgumentException("Ya existe una cuenta registrada con ese email");
         }
         if (pacienteRepository.existsByDni(request.getDni().trim())) {
-            throw new IllegalArgumentException("Ya existe un paciente con ese DNI");
+            throw new IllegalArgumentException("Ya existe una cuenta registrada con ese DNI");
         }
-        if (pacienteRepository.existsByNumeroHistoriaClinica(request.getNumeroHistoriaClinica().trim())) {
-            throw new IllegalArgumentException("Ya existe un paciente con ese número de historia clínica");
+        if (pacienteRepository.existsByTelefono(request.getTelefono().trim())) {
+            throw new IllegalArgumentException("Ya existe una cuenta registrada con ese teléfono");
         }
+    }
+
+    private String generarNumeroHistoriaClinica() {
+        long numero = pacienteRepository.count() + 1;
+        String candidato;
+        do {
+            candidato = "HC-" + String.format("%06d", numero++);
+        } while (pacienteRepository.existsByNumeroHistoriaClinica(candidato));
+        return candidato;
     }
 
     private Institucion resolverInstitucionPorNombre(String valor) {

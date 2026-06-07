@@ -7,13 +7,29 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Configuration
 public class CorsConfig {
 
-    @Value("${app.cors.allowed-origins:http://localhost:8081,http://localhost:8082,http://localhost:19006,http://127.0.0.1:8081,http://127.0.0.1:8082,http://127.0.0.1:19006}")
+    private static final List<String> BASE_ALLOWED_ORIGIN_PATTERNS = List.of(
+            "http://localhost:*",
+            "http://127.0.0.1:*",
+            "https://localhost:*",
+            "https://127.0.0.1:*",
+            "https://*.vercel.app",
+            "https://*.railway.app",
+            "https://mediturnos.net.ar",
+            "https://www.mediturnos.net.ar",
+            "http://mediturnos.net.ar",
+            "http://www.mediturnos.net.ar"
+    );
+
+    @Value("${app.cors.allowed-origins:}")
     private String allowedOrigins;
 
     @Bean
@@ -22,7 +38,7 @@ public class CorsConfig {
         configuration.setAllowedOriginPatterns(buildAllowedOrigins());
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setExposedHeaders(List.of("Authorization", "Content-Type"));
+        configuration.setExposedHeaders(List.of("Authorization", "Content-Type", "Location"));
         configuration.setAllowCredentials(false);
         configuration.setMaxAge(3600L);
 
@@ -32,15 +48,25 @@ public class CorsConfig {
     }
 
     private List<String> buildAllowedOrigins() {
-        List<String> configured = Arrays.stream(allowedOrigins.split(","))
-                .map(String::trim)
-                .filter(s -> !s.isBlank())
-                .toList();
+        Set<String> origins = new LinkedHashSet<>();
+        origins.addAll(BASE_ALLOWED_ORIGIN_PATTERNS);
 
-        if (!configured.isEmpty()) {
-            return configured;
+        if (allowedOrigins != null && !allowedOrigins.isBlank()) {
+            Arrays.stream(allowedOrigins.split(","))
+                    .map(String::trim)
+                    .map(this::removeTrailingSlash)
+                    .filter(s -> !s.isBlank())
+                    .forEach(origins::add);
         }
 
-        return List.of("http://localhost:*", "http://127.0.0.1:*", "https://*.railway.app", "https://*.vercel.app");
+        return new ArrayList<>(origins);
+    }
+
+    private String removeTrailingSlash(String origin) {
+        String normalized = origin;
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 }

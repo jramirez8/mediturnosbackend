@@ -95,6 +95,16 @@ public class TurnoService {
         if (user.isPatient() && !Objects.equals(user.usuarioId(), usuarioId)) {
             throw new AccessDeniedException("No podés consultar la historia clínica de otro paciente");
         }
+        if (user.isSecretary()) {
+            throw new AccessDeniedException("Secretaría no puede ver el detalle de historia clínica médica");
+        }
+        if (user.isProfessional()) {
+            Paciente paciente = pacienteRepository.findByUsuario_Id(usuarioId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Paciente no encontrado para el usuario: " + usuarioId));
+            if (!turnoRepository.existsByPacienteIdAndProfesionalId(paciente.getId(), user.profesionalId())) {
+                throw new AccessDeniedException("No tenés relación asistencial con este paciente");
+            }
+        }
         return turnoRepository.findByPacienteUsuario_IdAndEstadoOrderByFechaHoraInicioDesc(usuarioId, EstadoTurno.ATENDIDO).stream().map(this::mapTurno).toList();
     }
 
@@ -107,7 +117,7 @@ public class TurnoService {
         LocalDate today = appClock.today();
         LocalDateTime now = appClock.now();
         LocalDateTime from = today.atStartOfDay();
-        LocalDateTime to = today.plusDays(30).atTime(LocalTime.MAX);
+        LocalDateTime to = today.plusDays(60).atTime(LocalTime.MAX);
 
         List<Turno> turnos = turnoRepository.findByProfesionalInstitucionIdAndFechaHoraInicioBetweenOrderByFechaHoraInicioAsc(pi.getId(), from, to)
                 .stream()
@@ -117,7 +127,7 @@ public class TurnoService {
         List<HorarioAtencion> horariosConfigurados = horarioAtencionRepository.findByProfesionalInstitucionIdAndActivoTrueOrderByDiaSemanaAscHoraDesdeAsc(pi.getId());
 
         List<DisponibilidadSlotResponse> slots = new ArrayList<>();
-        for (int dias = 0; dias <= 30; dias++) {
+        for (int dias = 0; dias <= 60; dias++) {
             LocalDate fecha = today.plusDays(dias);
             String dia = normalizarDia(fecha);
             for (HorarioAtencion horario : horariosConfigurados.stream().filter(h -> dia.equalsIgnoreCase(h.getDiaSemana())).toList()) {
@@ -156,7 +166,7 @@ public class TurnoService {
 
     @Transactional(readOnly = true)
     public List<TurnoResponse> historiaPorDni(String dni) {
-        AuthenticatedUser user = currentUserService.requireAnyRole(RolUsuario.PROFESSIONAL, RolUsuario.ADMIN, RolUsuario.SECRETARY);
+        AuthenticatedUser user = currentUserService.requireAnyRole(RolUsuario.PROFESSIONAL, RolUsuario.ADMIN);
         if (user.isProfessional()) {
             return turnoRepository.findHistoriaPorDniAndProfesionalId(dni, user.profesionalId()).stream().map(this::mapTurno).toList();
         }
@@ -332,8 +342,9 @@ public class TurnoService {
     public void eliminar(Long id) {
         Turno turno = obtenerEntidadPorId(id);
         currentUserService.requireAnyRole(RolUsuario.ADMIN, RolUsuario.SECRETARY);
-        turnoRepository.delete(turno);
-        auditService.registrar("TURNO_ELIMINADO", "turnos", id, null, "Turno eliminado");
+        turno.setEstado(EstadoTurno.CANCELADO);
+        turnoRepository.save(turno);
+        auditService.registrar("TURNO_CANCELADO", "turnos", id, null, "Turno cancelado desde endpoint de eliminación lógica");
     }
 
     private Turno obtenerEntidadPorId(Long id) {

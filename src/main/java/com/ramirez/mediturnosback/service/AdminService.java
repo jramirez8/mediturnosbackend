@@ -8,8 +8,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -25,8 +27,10 @@ public class AdminService {
     private final InstitucionRepository institucionRepository;
     private final EspecialidadRepository especialidadRepository;
     private final ObraSocialRepository obraSocialRepository;
+    private final HorarioAtencionRepository horarioAtencionRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuditService auditService;
+    private final VerificationDispatchService verificationDispatchService;
 
     public AdminService(UsuarioRepository usuarioRepository,
                         PacienteRepository pacienteRepository,
@@ -36,8 +40,10 @@ public class AdminService {
                         InstitucionRepository institucionRepository,
                         EspecialidadRepository especialidadRepository,
                         ObraSocialRepository obraSocialRepository,
+                        HorarioAtencionRepository horarioAtencionRepository,
                         PasswordEncoder passwordEncoder,
-                        AuditService auditService) {
+                        AuditService auditService,
+                        VerificationDispatchService verificationDispatchService) {
         this.usuarioRepository = usuarioRepository;
         this.pacienteRepository = pacienteRepository;
         this.profesionalRepository = profesionalRepository;
@@ -46,8 +52,10 @@ public class AdminService {
         this.institucionRepository = institucionRepository;
         this.especialidadRepository = especialidadRepository;
         this.obraSocialRepository = obraSocialRepository;
+        this.horarioAtencionRepository = horarioAtencionRepository;
         this.passwordEncoder = passwordEncoder;
         this.auditService = auditService;
+        this.verificationDispatchService = verificationDispatchService;
     }
 
     public Map<String, Object> resumen() {
@@ -60,6 +68,7 @@ public class AdminService {
         out.put("instituciones", institucionRepository.count());
         out.put("especialidades", especialidadRepository.count());
         out.put("obrasSociales", obraSocialRepository.count());
+        out.put("horariosAtencion", horarioAtencionRepository.count());
         return out;
     }
 
@@ -75,6 +84,7 @@ public class AdminService {
 
     @Transactional
     public AdminUsuarioResponse crearUsuario(AdminUsuarioCreateRequest request) {
+        validarAltaUsuarioGenerico(request.getRol());
         validarEmailUnico(request.getEmail(), null);
         validarPasswordInicial(request.getPassword());
         Usuario usuario = new Usuario();
@@ -100,7 +110,10 @@ public class AdminService {
             validarPasswordInicial(request.getPassword());
             usuario.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }
-        if (request.getRol() != null) usuario.setRol(request.getRol());
+        if (request.getRol() != null) {
+            validarCambioRolSeguro(usuario, request.getRol());
+            usuario.setRol(request.getRol());
+        }
         if (request.getActivo() != null) usuario.setActivo(request.getActivo());
         if (request.getEmailVerificado() != null) usuario.setEmailVerificado(request.getEmailVerificado());
         Usuario guardado = usuarioRepository.save(usuario);
@@ -118,6 +131,26 @@ public class AdminService {
         if (usuario.getSecretaria() != null) usuario.getSecretaria().setActiva(false);
         usuarioRepository.save(usuario);
         auditService.registrar("ADMIN_USUARIO_BAJA", "usuarios", id, null, "Usuario desactivado");
+    }
+
+    @Transactional
+    public Map<String, Object> reenviarVerificacionUsuario(Long id) {
+        Usuario usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + id));
+        if (Boolean.TRUE.equals(usuario.getEmailVerificado())) {
+            return Map.of("ok", true, "message", "La cuenta ya está verificada.");
+        }
+        if (usuario.getPaciente() == null) {
+            throw new IllegalArgumentException("Solo se puede reenviar verificación a cuentas de pacientes creadas con ficha clínica.");
+        }
+        String codigo = String.format("%06d", ThreadLocalRandom.current().nextInt(0, 1_000_000));
+        usuario.setTokenVerificacion(codigo);
+        usuario.setTokenVerificacionExpiraEn(LocalDateTime.now().plusMinutes(15));
+        usuarioRepository.save(usuario);
+        boolean enviado = verificationDispatchService.enviarCodigoValidacionEmail(usuario, usuario.getPaciente(), codigo);
+        if (!enviado) throw new IllegalStateException("No se pudo enviar el correo de verificación. Revisá Brevo.");
+        auditService.registrar("ADMIN_REENVIO_VERIFICACION", "usuarios", usuario.getId(), null, "Código de verificación reenviado a " + usuario.getEmail());
+        return Map.of("ok", true, "message", "Código de verificación reenviado.");
     }
 
     public List<Institucion> listarInstituciones() { return institucionRepository.findAll(); }
@@ -649,6 +682,32 @@ public class AdminService {
                         throw new IllegalArgumentException("Ya existe un paciente con ese número de historia clínica");
                     }
                 });
+    }
+
+    private void validarAltaUsuarioGenerico(RolUsuario rol) {
+        if (rol == null) throw new IllegalArgumentException("Seleccioná un rol");
+        if (rol == RolUsuario.PROFESSIONAL) {
+            throw new IllegalArgumentException("Para crear un médico usá Admin > Personal > Médicos. Ahí se crea el usuario y queda vinculado al profesional, especialidad y sede.");
+        }
+        if (rol == RolUsuario.SECRETARY) {
+            throw new IllegalArgumentException("Para crear una secretaría usá Admin > Personal > Secretaría. Ahí se crea el usuario y queda vinculado a una institución.");
+        }
+        if (rol == RolUsuario.PATIENT) {
+            throw new IllegalArgumentException("Para crear un paciente usá Admin > Personal > Pacientes o el registro público. Así queda vinculado a su ficha clínica.");
+        }
+    }
+
+    private void validarCambioRolSeguro(Usuario usuario, RolUsuario nuevoRol) {
+        if (nuevoRol == null) return;
+        if (nuevoRol == RolUsuario.PROFESSIONAL && usuario.getProfesional() == null) {
+            throw new IllegalArgumentException("Este usuario no está vinculado a un médico. Crealo desde Admin > Personal > Médicos o editá un médico existente.");
+        }
+        if (nuevoRol == RolUsuario.SECRETARY && usuario.getSecretaria() == null) {
+            throw new IllegalArgumentException("Este usuario no está vinculado a una secretaría. Crealo desde Admin > Personal > Secretaría.");
+        }
+        if (nuevoRol == RolUsuario.PATIENT && usuario.getPaciente() == null) {
+            throw new IllegalArgumentException("Este usuario no está vinculado a un paciente. Crealo desde Admin > Personal > Pacientes o desde registro.");
+        }
     }
 
     private void validarPasswordInicial(String password) {

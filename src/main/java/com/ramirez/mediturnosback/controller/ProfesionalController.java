@@ -76,7 +76,7 @@ public class ProfesionalController {
 
     @GetMapping("/historial-paciente")
     public List<TurnoResponse> historialPaciente(@RequestParam String dni) {
-        currentUserService.requireAnyRole(RolUsuario.PROFESSIONAL, RolUsuario.ADMIN, RolUsuario.SECRETARY);
+        currentUserService.requireAnyRole(RolUsuario.PROFESSIONAL, RolUsuario.ADMIN);
         return turnoService.historiaPorDni(dni);
     }
 

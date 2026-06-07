@@ -53,7 +53,7 @@ public class PacienteController {
 
     @GetMapping("/buscar")
     public Paciente buscarPorDni(@RequestParam String dni) {
-        currentUserService.requireAnyRole(RolUsuario.ADMIN, RolUsuario.SECRETARY, RolUsuario.PROFESSIONAL);
+        currentUserService.requireAnyRole(RolUsuario.ADMIN, RolUsuario.SECRETARY);
         return pacienteService.buscarPorDni(dni);
     }
 

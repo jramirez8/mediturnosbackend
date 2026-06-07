@@ -7,6 +7,7 @@ import com.ramirez.mediturnosback.repository.InstitucionRepository;
 import com.ramirez.mediturnosback.repository.ObraSocialRepository;
 import com.ramirez.mediturnosback.repository.PacienteRepository;
 import com.ramirez.mediturnosback.repository.ProfesionalRepository;
+import com.ramirez.mediturnosback.repository.ProfesionalInstitucionRepository;
 import com.ramirez.mediturnosback.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -26,6 +27,7 @@ public class AuthService {
     private final ObraSocialRepository obraSocialRepository;
     private final InstitucionRepository institucionRepository;
     private final ProfesionalRepository profesionalRepository;
+    private final ProfesionalInstitucionRepository profesionalInstitucionRepository;
     private final VerificationDispatchService verificationDispatchService;
     private final AuditService auditService;
     private final PasswordEncoder passwordEncoder;
@@ -38,6 +40,7 @@ public class AuthService {
                        ObraSocialRepository obraSocialRepository,
                        InstitucionRepository institucionRepository,
                        ProfesionalRepository profesionalRepository,
+                       ProfesionalInstitucionRepository profesionalInstitucionRepository,
                        VerificationDispatchService verificationDispatchService,
                        AuditService auditService,
                        PasswordEncoder passwordEncoder,
@@ -49,6 +52,7 @@ public class AuthService {
         this.obraSocialRepository = obraSocialRepository;
         this.institucionRepository = institucionRepository;
         this.profesionalRepository = profesionalRepository;
+        this.profesionalInstitucionRepository = profesionalInstitucionRepository;
         this.verificationDispatchService = verificationDispatchService;
         this.auditService = auditService;
         this.passwordEncoder = passwordEncoder;
@@ -130,6 +134,7 @@ public class AuthService {
 
         Long pacienteId = usuario.getPaciente() != null ? usuario.getPaciente().getId() : null;
         Long profesionalId = usuario.getProfesional() != null ? usuario.getProfesional().getId() : null;
+        Long profesionalInstitucionId = resolverProfesionalInstitucionId(usuario);
         String nombreCompleto = usuario.getPaciente() != null
                 ? usuario.getPaciente().getNombre() + " " + usuario.getPaciente().getApellido()
                 : usuario.getProfesional() != null
@@ -148,7 +153,7 @@ public class AuthService {
                 throw new IllegalStateException("No se pudo enviar el código de verificación por email.");
             }
             return new AuthLoginResponse(
-                    usuario.getId(), pacienteId, profesionalId, usuario.getRol(), usuario.getEmail(), nombreCompleto,
+                    usuario.getId(), pacienteId, profesionalId, profesionalInstitucionId, usuario.getRol(), usuario.getEmail(), nombreCompleto,
                     Boolean.TRUE.equals(usuario.getEmailVerificado()),
                     "Te enviamos un código de verificación a tu correo.",
                     null, null, null, "Bearer", true, ocultarEmail(usuario.getEmail())
@@ -162,6 +167,7 @@ public class AuthService {
                 usuario.getId(),
                 pacienteId,
                 profesionalId,
+                profesionalInstitucionId,
                 usuario.getRol(),
                 usuario.getEmail(),
                 nombreCompleto,
@@ -198,6 +204,7 @@ public class AuthService {
 
         Long pacienteId = usuario.getPaciente() != null ? usuario.getPaciente().getId() : null;
         Long profesionalId = usuario.getProfesional() != null ? usuario.getProfesional().getId() : null;
+        Long profesionalInstitucionId = resolverProfesionalInstitucionId(usuario);
         String nombreCompleto = usuario.getPaciente() != null
                 ? usuario.getPaciente().getNombre() + " " + usuario.getPaciente().getApellido()
                 : usuario.getProfesional() != null
@@ -206,8 +213,17 @@ public class AuthService {
                 ? usuario.getSecretaria().getNombre() + " " + usuario.getSecretaria().getApellido()
                 : usuario.getEmail();
         String token = jwtService.generarToken(usuario);
-        return new AuthLoginResponse(usuario.getId(), pacienteId, profesionalId, usuario.getRol(), usuario.getEmail(), nombreCompleto,
+        return new AuthLoginResponse(usuario.getId(), pacienteId, profesionalId, profesionalInstitucionId, usuario.getRol(), usuario.getEmail(), nombreCompleto,
                 Boolean.TRUE.equals(usuario.getEmailVerificado()), "Inicio de sesión correcto", token, token, token, "Bearer", false, null);
+    }
+
+    private Long resolverProfesionalInstitucionId(Usuario usuario) {
+        if (usuario == null || usuario.getProfesional() == null || usuario.getProfesional().getId() == null) return null;
+        return profesionalInstitucionRepository.findByProfesionalIdAndActivoTrue(usuario.getProfesional().getId())
+                .stream()
+                .findFirst()
+                .map(ProfesionalInstitucion::getId)
+                .orElse(null);
     }
 
     private boolean debeUsarSegundoFactor(Usuario usuario) {

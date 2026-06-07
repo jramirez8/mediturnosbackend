@@ -45,6 +45,11 @@ public class AdminController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void desactivarUsuario(@PathVariable Long id) { adminService.desactivarUsuario(id); }
 
+    @PostMapping("/usuarios/{id}/reenviar-verificacion")
+    public Map<String, Object> reenviarVerificacionUsuario(@PathVariable Long id) {
+        return adminService.reenviarVerificacionUsuario(id);
+    }
+
     @GetMapping("/instituciones")
     public List<Institucion> listarInstituciones() { return adminService.listarInstituciones(); }
 

@@ -42,6 +42,9 @@ public interface TurnoRepository extends JpaRepository<Turno, Long> {
     @Query("select t from Turno t left join fetch t.adjuntos left join fetch t.consulta join t.paciente p where p.dni = :dni and t.profesional.id = :profesionalId and t.estado = com.ramirez.mediturnosback.model.EstadoTurno.ATENDIDO order by t.fechaHoraInicio desc")
     List<Turno> findHistoriaPorDniAndProfesionalId(@Param("dni") String dni, @Param("profesionalId") Long profesionalId);
 
+    @Query("select case when count(t) > 0 then true else false end from Turno t where t.paciente.id = :pacienteId and t.profesional.id = :profesionalId")
+    boolean existsByPacienteIdAndProfesionalId(@Param("pacienteId") Long pacienteId, @Param("profesionalId") Long profesionalId);
+
     @EntityGraph(attributePaths = {"adjuntos", "consulta"})
     Optional<Turno> findFirstByProfesionalUsuario_IdAndFechaHoraInicioAfterAndEstadoInOrderByFechaHoraInicioAsc(Long usuarioId, LocalDateTime now, List<EstadoTurno> estados);
 

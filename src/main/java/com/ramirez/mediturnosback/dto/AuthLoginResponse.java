@@ -12,6 +12,7 @@ public class AuthLoginResponse {
     private Long usuarioId;
     private Long pacienteId;
     private Long profesionalId;
+    private Long profesionalInstitucionId;
     private RolUsuario rol;
     private String email;
     private String nombreCompleto;

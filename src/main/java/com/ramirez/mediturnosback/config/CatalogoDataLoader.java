@@ -18,6 +18,7 @@ import org.springframework.core.annotation.Order;
 public class CatalogoDataLoader {
 
     @Bean
+    @Order(1)
     CommandLineRunner seedCatalogos(InstitucionRepository institucionRepository,
                                     EspecialidadRepository especialidadRepository) {
         return args -> {

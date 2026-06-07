@@ -142,7 +142,7 @@ public class AgendaService {
         if (id == null) throw new IllegalArgumentException("Falta profesionalInstitucionId");
         ProfesionalInstitucion pi = profesionalInstitucionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Sede profesional no encontrada"));
-        AuthenticatedUser user = currentUserService.requireAnyRole(RolUsuario.PROFESSIONAL, RolUsuario.ADMIN);
+        AuthenticatedUser user = currentUserService.requireAnyRole(RolUsuario.PROFESSIONAL, RolUsuario.SECRETARY, RolUsuario.ADMIN);
         if (user.isProfessional()) {
             Long ownerUsuarioId = pi.getProfesional() != null && pi.getProfesional().getUsuario() != null ? pi.getProfesional().getUsuario().getId() : null;
             if (!user.usuarioId().equals(ownerUsuarioId)) {

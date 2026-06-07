@@ -156,7 +156,10 @@ public class TurnoService {
 
     @Transactional(readOnly = true)
     public List<TurnoResponse> historiaPorDni(String dni) {
-        currentUserService.requireAnyRole(RolUsuario.PROFESSIONAL, RolUsuario.ADMIN, RolUsuario.SECRETARY);
+        AuthenticatedUser user = currentUserService.requireAnyRole(RolUsuario.PROFESSIONAL, RolUsuario.ADMIN, RolUsuario.SECRETARY);
+        if (user.isProfessional()) {
+            return turnoRepository.findHistoriaPorDniAndProfesionalId(dni, user.profesionalId()).stream().map(this::mapTurno).toList();
+        }
         return turnoRepository.findHistoriaPorDni(dni).stream().map(this::mapTurno).toList();
     }
 
@@ -262,7 +265,7 @@ public class TurnoService {
         turno.setProfesional(profesional);
         turno.setProfesionalInstitucion(pi);
         turno.setEspecialidad(especialidad);
-        turno.setEstado(EstadoTurno.REPROGRAMADO);
+        turno.setEstado(EstadoTurno.CONFIRMADO);
         Turno guardado = turnoRepository.save(turno);
         auditService.registrar("TURNO_REPROGRAMADO", "turnos", turnoId, null, "Turno reprogramado para " + request.getFechaHora());
         return mapTurno(guardado);

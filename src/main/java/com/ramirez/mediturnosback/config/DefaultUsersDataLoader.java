@@ -13,6 +13,7 @@ import com.ramirez.mediturnosback.repository.ObraSocialRepository;
 import com.ramirez.mediturnosback.repository.PacienteRepository;
 import com.ramirez.mediturnosback.repository.SecretariaRepository;
 import com.ramirez.mediturnosback.repository.UsuarioRepository;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -26,14 +27,19 @@ import java.time.LocalDate;
 public class DefaultUsersDataLoader {
 
     @Bean
+    @Order(4)
     CommandLineRunner seedDefaultUsers(UsuarioRepository usuarioRepository,
                                        SecretariaRepository secretariaRepository,
                                        PacienteRepository pacienteRepository,
                                        InstitucionRepository institucionRepository,
                                        ObraSocialRepository obraSocialRepository,
-                                       PasswordEncoder passwordEncoder) {
+                                       PasswordEncoder passwordEncoder,
+                                       @Value("${app.admin.email:admin@mediturnos.net.ar}") String adminEmail,
+                                       @Value("${app.admin.password:11223344}") String adminPassword,
+                                       @Value("${app.seed.demo-users:false}") boolean seedDemoUsers) {
         return args -> {
-            seedAdmin(usuarioRepository, passwordEncoder);
+            seedAdmin(usuarioRepository, passwordEncoder, adminEmail, adminPassword);
+            if (!seedDemoUsers) return;
             seedPaciente(usuarioRepository, pacienteRepository, institucionRepository, obraSocialRepository, passwordEncoder);
             seedSecretaria(usuarioRepository, secretariaRepository, institucionRepository, passwordEncoder,
                     "secretaria1@mediturnos.local", "Secretaria123", "Silvia", "Gomez", "27111222",
@@ -44,17 +50,18 @@ public class DefaultUsersDataLoader {
         };
     }
 
-    private void seedAdmin(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder) {
-        final String email = "admin@mediturnos.local";
-        if (usuarioRepository.existsByEmailIgnoreCase(email)) {
+    private void seedAdmin(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder, String email, String password) {
+        String normalizedEmail = email == null || email.isBlank() ? "admin@mediturnos.net.ar" : email.trim().toLowerCase();
+        if (usuarioRepository.existsByEmailIgnoreCase(normalizedEmail)) {
             return;
         }
         Usuario admin = new Usuario();
-        admin.setEmail(email);
-        admin.setPasswordHash(passwordEncoder.encode("Admin1234"));
+        admin.setEmail(normalizedEmail);
+        admin.setPasswordHash(passwordEncoder.encode(password == null || password.isBlank() ? "11223344" : password));
         admin.setRol(RolUsuario.ADMIN);
         admin.setEmailVerificado(true);
         admin.setActivo(true);
+        admin.setTwoFactorEmailEnabled(false);
         usuarioRepository.save(admin);
     }
 

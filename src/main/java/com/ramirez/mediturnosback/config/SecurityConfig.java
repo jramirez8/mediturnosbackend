@@ -41,7 +41,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/turnos/disponibilidad").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/secretaria/**").hasAnyRole("SECRETARY", "ADMIN")
-                        .requestMatchers("/api/agenda/**").hasAnyRole("PROFESSIONAL", "ADMIN")
+                        .requestMatchers("/api/agenda/**").hasAnyRole("PROFESSIONAL", "SECRETARY", "ADMIN")
                         .requestMatchers("/api/profesionales/me", "/api/profesionales/me/**", "/api/profesionales/agenda/**", "/api/profesionales/proximo-turno/**").hasAnyRole("PROFESSIONAL", "ADMIN")
                         .requestMatchers("/api/profesionales/historial-paciente").hasAnyRole("PROFESSIONAL", "SECRETARY", "ADMIN")
                         .requestMatchers("/api/lista-espera/pendientes").hasAnyRole("SECRETARY", "ADMIN")

@@ -10,6 +10,7 @@ import com.ramirez.mediturnosback.repository.InstitucionRepository;
 import com.ramirez.mediturnosback.repository.ProfesionalRepository;
 import com.ramirez.mediturnosback.repository.UsuarioRepository;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,12 +25,15 @@ import org.springframework.core.annotation.Order;
 public class ProfesionalDataLoader {
 
     @Bean
+    @Order(3)
     CommandLineRunner seedProfesionales(ProfesionalRepository profesionalRepository,
                                         UsuarioRepository usuarioRepository,
                                         InstitucionRepository institucionRepository,
                                         EspecialidadRepository especialidadRepository,
-                                        PasswordEncoder passwordEncoder) {
+                                        PasswordEncoder passwordEncoder,
+                                        @Value("${app.seed.demo-professionals:false}") boolean seedDemoProfessionals) {
         return args -> {
+            if (!seedDemoProfessionals) return;
             if (profesionalRepository.count() > 0) return;
 
             crearProfesional(profesionalRepository, usuarioRepository, passwordEncoder, institucionRepository, especialidadRepository,

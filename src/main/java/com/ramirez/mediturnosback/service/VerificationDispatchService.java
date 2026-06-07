@@ -8,6 +8,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+
 @Service
 public class VerificationDispatchService {
 
@@ -16,15 +19,18 @@ public class VerificationDispatchService {
     private final MailService mailService;
     private final String appBaseUrl;
     private final String frontendResetUrl;
+    private final String frontendVerifyUrl;
 
     public VerificationDispatchService(
             MailService mailService,
             @Value("${app.base-url:http://127.0.0.1:8080}") String appBaseUrl,
-            @Value("${app.frontend-reset-url:}") String frontendResetUrl
+            @Value("${app.frontend-reset-url:}") String frontendResetUrl,
+            @Value("${app.frontend-verify-url:}") String frontendVerifyUrl
     ) {
         this.mailService = mailService;
         this.appBaseUrl = appBaseUrl;
         this.frontendResetUrl = frontendResetUrl;
+        this.frontendVerifyUrl = frontendVerifyUrl;
     }
 
     public boolean enviarValidacionEmail(Usuario usuario, Paciente paciente, String verificationUrl) {
@@ -41,6 +47,27 @@ public class VerificationDispatchService {
                 """.formatted(paciente.getNombre(), verificationUrl, verificationUrl);
         boolean enviado = mailService.enviarEmail(usuario.getEmail(), paciente.getNombre(), "Mediturnos - Verificá tu cuenta", html);
         log.info("EMAIL VERIFICACION | Para: {} | Link: {} | enviado={}", usuario.getEmail(), verificationUrl, enviado);
+        return enviado;
+    }
+
+    public boolean enviarCodigoValidacionEmail(Usuario usuario, Paciente paciente, String codigo) {
+        String verifyUrl = generarVerifyUrl(usuario.getEmail(), codigo);
+        String html = """
+                <html><body style="font-family: Arial, sans-serif;">
+                <h2>Mediturnos - Verificá tu cuenta</h2>
+                <p>Hola %s,</p>
+                <p>Gracias por registrarte en Mediturnos.</p>
+                <p>Tu código de verificación es:</p>
+                <h1 style="letter-spacing:4px;color:#7C3AED">%s</h1>
+                <p>Este código vence en 15 minutos.</p>
+                <p>También podés abrir este enlace para cargarlo en la app:</p>
+                <p><a href="%s">Verificar cuenta</a></p>
+                <p style="font-size:12px;color:#666">%s</p>
+                <p>Si no solicitaste esta cuenta, podés ignorar este mensaje.</p>
+                </body></html>
+                """.formatted(paciente.getNombre(), codigo, verifyUrl, verifyUrl);
+        boolean enviado = mailService.enviarEmail(usuario.getEmail(), paciente.getNombre(), "Mediturnos - Código de verificación", html);
+        log.info("EMAIL VERIFICACION CODIGO | Para: {} | codigo={} | enviado={}", usuario.getEmail(), codigo, enviado);
         return enviado;
     }
 
@@ -118,11 +145,23 @@ public class VerificationDispatchService {
         return enviado;
     }
 
+    public String generarVerifyUrl(String email, String codigo) {
+        String base = frontendVerifyUrl != null && !frontendVerifyUrl.isBlank()
+                ? frontendVerifyUrl
+                : appBaseUrl + "/registro/verificar";
+        String separator = base.contains("?") ? "&" : "?";
+        return base + separator + "email=" + enc(email) + "&codigo=" + enc(codigo);
+    }
+
     public String generarResetUrl(String resetToken) {
         String base = frontendResetUrl != null && !frontendResetUrl.isBlank()
                 ? frontendResetUrl
                 : appBaseUrl + "/reset-password";
         String separator = base.contains("?") ? "&" : "?";
-        return base + separator + "token=" + resetToken;
+        return base + separator + "token=" + enc(resetToken);
+    }
+
+    private String enc(String value) {
+        return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
     }
 }

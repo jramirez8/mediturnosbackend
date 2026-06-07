@@ -42,6 +42,11 @@ public class AuthController {
         return new SimpleMessageResponse(authService.verificarEmail(token));
     }
 
+    @PostMapping("/verificar-cuenta")
+    public SimpleMessageResponse verificarCuenta(@RequestBody VerifyAccountRequest request) {
+        return new SimpleMessageResponse(authService.verificarCuentaConCodigo(request));
+    }
+
     @PostMapping("/forgot-password")
     public PasswordRecoveryResponse forgotPassword(@RequestBody ForgotPasswordRequest request) {
         return authService.solicitarRecuperacionPassword(request);

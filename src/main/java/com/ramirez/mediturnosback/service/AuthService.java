@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Service
@@ -28,6 +27,7 @@ public class AuthService {
     private final InstitucionRepository institucionRepository;
     private final ProfesionalRepository profesionalRepository;
     private final VerificationDispatchService verificationDispatchService;
+    private final AuditService auditService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final String appBaseUrl;
@@ -39,6 +39,7 @@ public class AuthService {
                        InstitucionRepository institucionRepository,
                        ProfesionalRepository profesionalRepository,
                        VerificationDispatchService verificationDispatchService,
+                       AuditService auditService,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
                        @Value("${app.base-url:http://127.0.0.1:8080}") String appBaseUrl,
@@ -49,6 +50,7 @@ public class AuthService {
         this.institucionRepository = institucionRepository;
         this.profesionalRepository = profesionalRepository;
         this.verificationDispatchService = verificationDispatchService;
+        this.auditService = auditService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.appBaseUrl = appBaseUrl;
@@ -69,8 +71,8 @@ public class AuthService {
         usuario.setRol(RolUsuario.PATIENT);
         usuario.setEmailVerificado(false);
         usuario.setActivo(false);
-        usuario.setTokenVerificacion(UUID.randomUUID().toString());
-        usuario.setTokenVerificacionExpiraEn(LocalDateTime.now().plusDays(2));
+        usuario.setTokenVerificacion(generarCodigoSeisDigitos());
+        usuario.setTokenVerificacionExpiraEn(LocalDateTime.now().plusMinutes(15));
 
         Paciente paciente = new Paciente();
         paciente.setNombre(request.getNombre().trim());
@@ -87,13 +89,15 @@ public class AuthService {
         paciente.setUsuario(usuario);
 
         Paciente guardado = pacienteRepository.save(paciente);
-        String verificationUrl = appBaseUrl + "/api/auth/verificar-email?token=" + guardado.getUsuario().getTokenVerificacion();
-        verificationDispatchService.enviarValidacionEmail(guardado.getUsuario(), guardado, verificationUrl);
-        verificationDispatchService.enviarValidacionWhatsapp(guardado, guardado.getUsuario().getTokenVerificacion());
+        boolean enviado = verificationDispatchService.enviarCodigoValidacionEmail(guardado.getUsuario(), guardado, guardado.getUsuario().getTokenVerificacion());
+        if (!enviado) {
+            throw new IllegalStateException("No se pudo enviar el código de verificación. Revisá la configuración de Brevo.");
+        }
+        auditService.registrarSistema("REGISTRO_PACIENTE", "pacientes", guardado.getId(), "Registro pendiente de verificación para " + guardado.getUsuario().getEmail());
         return new PacienteRegistroResponse(
                 guardado.getUsuario().getId(),
                 guardado.getId(),
-                "Cuenta creada. Revisá tu correo para activar la cuenta.",
+                "✅ Cuenta creada. Te enviamos un código de 6 dígitos para verificarla.",
                 true
         );
     }
@@ -101,19 +105,26 @@ public class AuthService {
     public AuthLoginResponse login(AuthLoginRequest request) {
         String identificador = request.resolverIdentificador();
         if (identificador == null || identificador.isBlank()) {
+            auditService.registrarSistema("LOGIN_ERROR", "usuarios", null, "Intento de login sin identificador");
             throw new IllegalArgumentException("Ingresá email o DNI");
         }
 
         Usuario usuario = usuarioRepository.findByEmailOrPacienteDni(identificador)
-                .orElseThrow(() -> new IllegalArgumentException("Credenciales inválidas"));
+                .orElseThrow(() -> {
+                    auditService.registrarSistema("LOGIN_ERROR", "usuarios", null, "Credenciales inválidas para " + identificador);
+                    return new IllegalArgumentException("Credenciales inválidas");
+                });
 
         if (!passwordEncoder.matches(request.getPassword(), usuario.getPasswordHash())) {
+            auditService.registrarSistema("LOGIN_ERROR", "usuarios", usuario.getId(), "Password inválido para " + usuario.getEmail());
             throw new IllegalArgumentException("Credenciales inválidas");
         }
         if (Boolean.FALSE.equals(usuario.getEmailVerificado())) {
-            throw new IllegalArgumentException("Debés verificar tu correo antes de ingresar");
+            auditService.registrarSistema("LOGIN_ERROR", "usuarios", usuario.getId(), "Cuenta sin verificar: " + usuario.getEmail());
+            throw new IllegalArgumentException("Debés verificar tu correo antes de ingresar. Revisá el código que te enviamos al registrarte.");
         }
         if (Boolean.FALSE.equals(usuario.getActivo())) {
+            auditService.registrarSistema("LOGIN_ERROR", "usuarios", usuario.getId(), "Cuenta inactiva: " + usuario.getEmail());
             throw new IllegalArgumentException("Tu cuenta está inactiva");
         }
 
@@ -128,7 +139,7 @@ public class AuthService {
                 : usuario.getEmail();
 
         if (debeUsarSegundoFactor(usuario)) {
-            String codigo = String.format("%06d", ThreadLocalRandom.current().nextInt(0, 1_000_000));
+            String codigo = generarCodigoSeisDigitos();
             usuario.setTwoFactorCode(codigo);
             usuario.setTwoFactorCodeExpiraEn(LocalDateTime.now().plusMinutes(10));
             usuarioRepository.save(usuario);
@@ -145,6 +156,7 @@ public class AuthService {
         }
 
         String token = jwtService.generarToken(usuario);
+        auditService.registrarSistema("LOGIN_OK", "usuarios", usuario.getId(), "Inicio de sesión correcto: " + usuario.getEmail());
 
         return new AuthLoginResponse(
                 usuario.getId(),
@@ -199,7 +211,7 @@ public class AuthService {
     }
 
     private boolean debeUsarSegundoFactor(Usuario usuario) {
-        return Boolean.TRUE.equals(usuario.getTwoFactorEmailEnabled()) || usuario.getRol() == RolUsuario.ADMIN;
+        return Boolean.TRUE.equals(usuario.getTwoFactorEmailEnabled());
     }
 
     private String ocultarEmail(String email) {
@@ -223,6 +235,39 @@ public class AuthService {
         usuario.setTokenVerificacionExpiraEn(null);
         usuarioRepository.save(usuario);
         return "Cuenta verificada correctamente";
+    }
+
+
+    @Transactional
+    public String verificarCuentaConCodigo(VerifyAccountRequest request) {
+        String identificador = request.resolverIdentificador();
+        if (identificador == null || identificador.isBlank()) {
+            throw new IllegalArgumentException("Ingresá email o DNI");
+        }
+        if (request.getCodigo() == null || request.getCodigo().isBlank()) {
+            throw new IllegalArgumentException("Ingresá el código de verificación");
+        }
+        Usuario usuario = usuarioRepository.findByEmailOrPacienteDni(identificador)
+                .orElseThrow(() -> new ResourceNotFoundException("No encontramos una cuenta para verificar"));
+        if (Boolean.TRUE.equals(usuario.getEmailVerificado()) && Boolean.TRUE.equals(usuario.getActivo())) {
+            return "La cuenta ya estaba verificada. Ya podés iniciar sesión.";
+        }
+        if (usuario.getTokenVerificacion() == null || usuario.getTokenVerificacionExpiraEn() == null) {
+            throw new IllegalArgumentException("No hay una verificación pendiente para esta cuenta");
+        }
+        if (usuario.getTokenVerificacionExpiraEn().isBefore(LocalDateTime.now())) {
+            throw new IllegalArgumentException("El código de verificación expiró. Pedí uno nuevo desde el registro o contactá a administración.");
+        }
+        if (!usuario.getTokenVerificacion().equals(request.getCodigo().trim())) {
+            throw new IllegalArgumentException("Código de verificación inválido");
+        }
+        usuario.setEmailVerificado(true);
+        usuario.setActivo(true);
+        usuario.setTokenVerificacion(null);
+        usuario.setTokenVerificacionExpiraEn(null);
+        usuarioRepository.save(usuario);
+        auditService.registrarSistema("CUENTA_VERIFICADA", "usuarios", usuario.getId(), "Cuenta verificada por código: " + usuario.getEmail());
+        return "✅ Cuenta verificada correctamente. Ya podés iniciar sesión.";
     }
 
     public RegistroDisponibilidadResponse validarDisponibilidadRegistro(RegistroDisponibilidadRequest request) {
@@ -259,23 +304,32 @@ public class AuthService {
             throw new IllegalArgumentException("Ingresá email o DNI");
         }
 
-        return usuarioRepository.findByEmailOrPacienteDni(identificador)
-                .map(usuario -> {
-                    usuario.setTokenRecuperacion(UUID.randomUUID().toString());
-                    usuario.setTokenRecuperacionExpiraEn(LocalDateTime.now().plusHours(2));
-                    usuarioRepository.save(usuario);
-                    boolean emailEnviado = verificationDispatchService.enviarRecuperacionEmail(usuario, usuario.getTokenRecuperacion());
-                    if (!emailEnviado) {
-                        throw new IllegalStateException("No se pudo enviar el correo de recuperación. Revisá la configuración de Brevo.");
-                    }
-                    return new PasswordRecoveryResponse(
-                            "Te enviamos un correo con instrucciones para recuperar la contraseña.",
-                            exposeResetToken ? usuario.getTokenRecuperacion() : null,
-                            exposeResetToken ? verificationDispatchService.generarResetUrl(usuario.getTokenRecuperacion()) : null,
-                            true
-                    );
-                })
-                .orElseThrow(() -> new IllegalArgumentException("No encontramos una cuenta registrada con ese DNI o email."));
+        var usuarioOpt = usuarioRepository.findByEmailOrPacienteDni(identificador);
+        if (usuarioOpt.isEmpty()) {
+            auditService.registrarSistema("PASSWORD_RECOVERY_REQUEST", "usuarios", null, "Solicitud de recuperación para identificador no encontrado: " + identificador);
+            return new PasswordRecoveryResponse(
+                    "Solicitud enviada. Si los datos son correctos, te enviamos un código para restablecer tu clave.",
+                    null,
+                    null,
+                    true
+            );
+        }
+
+        Usuario usuario = usuarioOpt.get();
+        usuario.setTokenRecuperacion(generarCodigoSeisDigitos());
+        usuario.setTokenRecuperacionExpiraEn(LocalDateTime.now().plusMinutes(15));
+        usuarioRepository.save(usuario);
+        boolean emailEnviado = verificationDispatchService.enviarRecuperacionEmail(usuario, usuario.getTokenRecuperacion());
+        if (!emailEnviado) {
+            throw new IllegalStateException("No se pudo enviar el correo de recuperación. Revisá la configuración de Brevo.");
+        }
+        auditService.registrarSistema("PASSWORD_RECOVERY_REQUEST", "usuarios", usuario.getId(), "Código de recuperación enviado a " + usuario.getEmail());
+        return new PasswordRecoveryResponse(
+                "Solicitud enviada. Si los datos son correctos, te enviamos un código para restablecer tu clave.",
+                exposeResetToken ? usuario.getTokenRecuperacion() : null,
+                exposeResetToken ? verificationDispatchService.generarResetUrl(usuario.getTokenRecuperacion()) : null,
+                true
+        );
     }
 
     @Transactional
@@ -299,7 +353,12 @@ public class AuthService {
         usuario.setActivo(true);
         usuario.setEmailVerificado(true);
         usuarioRepository.save(usuario);
+        auditService.registrarSistema("PASSWORD_RESET_OK", "usuarios", usuario.getId(), "Contraseña restablecida para " + usuario.getEmail());
         return "Contraseña actualizada correctamente";
+    }
+
+    private String generarCodigoSeisDigitos() {
+        return String.format("%06d", ThreadLocalRandom.current().nextInt(0, 1_000_000));
     }
 
     private void validarPasswords(String password, String confirmPassword) {

@@ -76,6 +76,7 @@ public class AdminService {
     @Transactional
     public AdminUsuarioResponse crearUsuario(AdminUsuarioCreateRequest request) {
         validarEmailUnico(request.getEmail(), null);
+        validarPasswordInicial(request.getPassword());
         Usuario usuario = new Usuario();
         usuario.setEmail(normalizeEmail(request.getEmail()));
         usuario.setPasswordHash(passwordEncoder.encode(request.getPassword()));
@@ -96,6 +97,7 @@ public class AdminService {
             usuario.setEmail(normalizeEmail(request.getEmail()));
         }
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            validarPasswordInicial(request.getPassword());
             usuario.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }
         if (request.getRol() != null) usuario.setRol(request.getRol());
@@ -213,6 +215,7 @@ public class AdminService {
         validarEmailUnico(request.getEmail(), null);
         validarDniUnicoProfesional(request.getDni(), null);
         validarMatriculaUnica(request.getMatricula(), null);
+        validarPasswordInicial(request.getPassword());
 
         Usuario usuario = new Usuario();
         usuario.setEmail(normalizeEmail(request.getEmail()));
@@ -243,6 +246,7 @@ public class AdminService {
             usuario.setEmail(normalizeEmail(request.getEmail()));
         }
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            validarPasswordInicial(request.getPassword());
             usuario.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }
         if (request.getActivo() != null) {
@@ -293,6 +297,7 @@ public class AdminService {
     public AdminSecretariaResponse crearSecretaria(AdminSecretariaRequest request) {
         validarEmailUnico(request.getEmail(), null);
         validarDniUnicoSecretaria(request.getDni(), null);
+        validarPasswordInicial(request.getPassword());
         Institucion institucion = resolveInstitucion(request.getInstitucionId());
 
         Usuario usuario = new Usuario();
@@ -326,6 +331,7 @@ public class AdminService {
             usuario.setEmail(normalizeEmail(request.getEmail()));
         }
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            validarPasswordInicial(request.getPassword());
             usuario.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }
         if (request.getEmailVerificado() != null) usuario.setEmailVerificado(request.getEmailVerificado());
@@ -365,6 +371,7 @@ public class AdminService {
         validarEmailUnico(request.getEmail(), null);
         validarDniUnicoPaciente(request.getDni(), null);
         validarHistoriaClinicaUnica(request.getNumeroHistoriaClinica(), null);
+        validarPasswordInicial(request.getPassword());
         ObraSocial obraSocial = resolveObraSocial(request.getObraSocialId());
 
         Usuario usuario = new Usuario();
@@ -393,6 +400,7 @@ public class AdminService {
             usuario.setEmail(normalizeEmail(request.getEmail()));
         }
         if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            validarPasswordInicial(request.getPassword());
             usuario.setPasswordHash(passwordEncoder.encode(request.getPassword()));
         }
         if (request.getEmailVerificado() != null) usuario.setEmailVerificado(request.getEmailVerificado());
@@ -641,6 +649,12 @@ public class AdminService {
                         throw new IllegalArgumentException("Ya existe un paciente con ese número de historia clínica");
                     }
                 });
+    }
+
+    private void validarPasswordInicial(String password) {
+        if (password == null || password.isBlank() || password.trim().length() < 8) {
+            throw new IllegalArgumentException("La contraseña debe tener al menos 8 caracteres");
+        }
     }
 
     private String normalizeEmail(String email) {

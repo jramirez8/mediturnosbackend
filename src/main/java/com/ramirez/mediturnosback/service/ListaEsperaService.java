@@ -6,6 +6,9 @@ import com.ramirez.mediturnosback.dto.TurnoResponse;
 import com.ramirez.mediturnosback.exception.ResourceNotFoundException;
 import com.ramirez.mediturnosback.model.*;
 import com.ramirez.mediturnosback.repository.*;
+import com.ramirez.mediturnosback.security.AuthenticatedUser;
+import com.ramirez.mediturnosback.security.CurrentUserService;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,23 +23,27 @@ public class ListaEsperaService {
     private final EspecialidadRepository especialidadRepository;
     private final VerificationDispatchService verificationDispatchService;
     private final AuditService auditService;
+    private final CurrentUserService currentUserService;
 
     public ListaEsperaService(ListaEsperaRepository listaEsperaRepository,
                               PacienteRepository pacienteRepository,
                               ProfesionalInstitucionRepository profesionalInstitucionRepository,
                               EspecialidadRepository especialidadRepository,
                               VerificationDispatchService verificationDispatchService,
-                              AuditService auditService) {
+                              AuditService auditService,
+                              CurrentUserService currentUserService) {
         this.listaEsperaRepository = listaEsperaRepository;
         this.pacienteRepository = pacienteRepository;
         this.profesionalInstitucionRepository = profesionalInstitucionRepository;
         this.especialidadRepository = especialidadRepository;
         this.verificationDispatchService = verificationDispatchService;
         this.auditService = auditService;
+        this.currentUserService = currentUserService;
     }
 
     @Transactional
     public ListaEsperaResponse crear(ListaEsperaRequest request) {
+        validarPacienteSolicitado(request.getPacienteId());
         Paciente paciente = pacienteRepository.findById(request.getPacienteId())
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente no encontrado"));
         ProfesionalInstitucion pi = profesionalInstitucionRepository.findById(request.getProfesionalInstitucionId())
@@ -56,6 +63,7 @@ public class ListaEsperaService {
     }
 
     public List<ListaEsperaResponse> listarPorPaciente(Long pacienteId) {
+        validarPacienteSolicitado(pacienteId);
         return listaEsperaRepository.findByPacienteIdOrderByCreadoEnDesc(pacienteId).stream().map(this::map).toList();
     }
 
@@ -78,6 +86,13 @@ public class ListaEsperaService {
                         auditService.registrar("LISTA_ESPERA_NOTIFICADA", "lista_espera", entry.getId(), "sistema", "Se notificó un turno liberado");
                     }
                 });
+    }
+
+    private void validarPacienteSolicitado(Long pacienteId) {
+        AuthenticatedUser user = currentUserService.requireUser();
+        if (user.isAdmin() || user.isSecretary()) return;
+        if (user.isPatient() && user.pacienteId() != null && user.pacienteId().equals(pacienteId)) return;
+        throw new AccessDeniedException("No podés operar lista de espera de otro paciente");
     }
 
     private ListaEsperaResponse map(ListaEsperaEntry e) {

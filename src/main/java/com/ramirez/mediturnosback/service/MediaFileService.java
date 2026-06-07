@@ -93,6 +93,50 @@ public class MediaFileService {
         }
     }
 
+
+    public StoredFile storeMedicalDocument(MultipartFile file, String category, Long ownerId) {
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("No se recibió ningún archivo");
+        }
+        long maxMedicalDocumentBytes = 1_048_576L;
+        if (file.getSize() > maxMedicalDocumentBytes) {
+            throw new IllegalArgumentException("El documento supera 1 MB. Usá PDF/JPG/PNG liviano.");
+        }
+        String contentType = file.getContentType() == null ? "" : file.getContentType().toLowerCase(Locale.ROOT);
+        String extension = extensionFromContentType(contentType, file.getOriginalFilename());
+        if (extension == null) {
+            throw new IllegalArgumentException("Solo se aceptan PDF, JPG o PNG");
+        }
+
+        if (contentType.startsWith("image/")) {
+            try (InputStream inputStream = file.getInputStream()) {
+                if (ImageIO.read(inputStream) == null) {
+                    throw new IllegalArgumentException("Imagen inválida. Usá JPG o PNG.");
+                }
+            } catch (IOException e) {
+                throw new IllegalStateException("No se pudo validar la imagen");
+            }
+        }
+
+        try (InputStream inputStream = file.getInputStream()) {
+            String safeCategory = sanitizePathPart(category == null ? "general" : category);
+            String date = LocalDate.now().toString();
+            Path directory = root().resolve(safeCategory).resolve(String.valueOf(ownerId == null ? 0 : ownerId)).resolve(date);
+            Files.createDirectories(directory);
+
+            String originalName = file.getOriginalFilename() == null ? "documento" + extension : file.getOriginalFilename();
+            String baseName = sanitizeFileName(originalName.replaceAll("\\.[^.]*$", ""));
+            String filename = baseName + "-" + UUID.randomUUID() + extension;
+            Path target = directory.resolve(filename);
+            Files.copy(inputStream, target);
+
+            String relativePath = root().relativize(target).toString().replace('\\', '/');
+            return new StoredFile(originalName, normalizeDocumentMimeType(contentType, extension), relativePath, file.getSize(), Files.size(target));
+        } catch (IOException e) {
+            throw new IllegalStateException("No se pudo guardar el documento");
+        }
+    }
+
     public Resource loadAsResource(String relativePath) {
         try {
             Path filePath = resolveSafe(relativePath);
@@ -169,6 +213,21 @@ public class MediaFileService {
         }
     }
 
+
+    private String extensionFromContentType(String contentType, String originalFilename) {
+        String filename = originalFilename == null ? "" : originalFilename.toLowerCase(Locale.ROOT);
+        if ("application/pdf".equals(contentType) || filename.endsWith(".pdf")) return ".pdf";
+        if ("image/jpeg".equals(contentType) || "image/jpg".equals(contentType) || filename.endsWith(".jpg") || filename.endsWith(".jpeg")) return ".jpg";
+        if ("image/png".equals(contentType) || filename.endsWith(".png")) return ".png";
+        return null;
+    }
+
+    private String normalizeDocumentMimeType(String contentType, String extension) {
+        if (".pdf".equals(extension)) return "application/pdf";
+        if (".png".equals(extension)) return "image/png";
+        return "image/jpeg";
+    }
+
     private Path root() {
         return Paths.get(uploadDir).toAbsolutePath().normalize();
     }
@@ -199,4 +258,5 @@ public class MediaFileService {
     }
 
     public record StoredImage(String originalName, String mimeType, String relativePath, Long originalSizeBytes, Long compressedSizeBytes) {}
+    public record StoredFile(String originalName, String mimeType, String relativePath, Long originalSizeBytes, Long storedSizeBytes) {}
 }

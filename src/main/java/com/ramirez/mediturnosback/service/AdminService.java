@@ -26,6 +26,7 @@ public class AdminService {
     private final EspecialidadRepository especialidadRepository;
     private final ObraSocialRepository obraSocialRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuditService auditService;
 
     public AdminService(UsuarioRepository usuarioRepository,
                         PacienteRepository pacienteRepository,
@@ -35,7 +36,8 @@ public class AdminService {
                         InstitucionRepository institucionRepository,
                         EspecialidadRepository especialidadRepository,
                         ObraSocialRepository obraSocialRepository,
-                        PasswordEncoder passwordEncoder) {
+                        PasswordEncoder passwordEncoder,
+                        AuditService auditService) {
         this.usuarioRepository = usuarioRepository;
         this.pacienteRepository = pacienteRepository;
         this.profesionalRepository = profesionalRepository;
@@ -45,6 +47,7 @@ public class AdminService {
         this.especialidadRepository = especialidadRepository;
         this.obraSocialRepository = obraSocialRepository;
         this.passwordEncoder = passwordEncoder;
+        this.auditService = auditService;
     }
 
     public Map<String, Object> resumen() {
@@ -79,7 +82,9 @@ public class AdminService {
         usuario.setRol(request.getRol());
         usuario.setActivo(valueOrDefault(request.getActivo(), true));
         usuario.setEmailVerificado(valueOrDefault(request.getEmailVerificado(), true));
-        return toUsuarioResponse(usuarioRepository.save(usuario));
+        Usuario guardado = usuarioRepository.save(usuario);
+        auditService.registrar("ADMIN_USUARIO_ALTA", "usuarios", guardado.getId(), null, "Usuario creado");
+        return toUsuarioResponse(guardado);
     }
 
     @Transactional
@@ -96,7 +101,9 @@ public class AdminService {
         if (request.getRol() != null) usuario.setRol(request.getRol());
         if (request.getActivo() != null) usuario.setActivo(request.getActivo());
         if (request.getEmailVerificado() != null) usuario.setEmailVerificado(request.getEmailVerificado());
-        return toUsuarioResponse(usuarioRepository.save(usuario));
+        Usuario guardado = usuarioRepository.save(usuario);
+        auditService.registrar("ADMIN_USUARIO_EDICION", "usuarios", guardado.getId(), null, "Usuario actualizado");
+        return toUsuarioResponse(guardado);
     }
 
     @Transactional
@@ -108,6 +115,7 @@ public class AdminService {
         if (usuario.getProfesional() != null) usuario.getProfesional().setActivo(false);
         if (usuario.getSecretaria() != null) usuario.getSecretaria().setActiva(false);
         usuarioRepository.save(usuario);
+        auditService.registrar("ADMIN_USUARIO_BAJA", "usuarios", id, null, "Usuario desactivado");
     }
 
     public List<Institucion> listarInstituciones() { return institucionRepository.findAll(); }
@@ -116,7 +124,9 @@ public class AdminService {
     public Institucion crearInstitucion(AdminInstitucionRequest request) {
         Institucion i = new Institucion();
         applyInstitucion(i, request);
-        return institucionRepository.save(i);
+        Institucion guardada = institucionRepository.save(i);
+        auditService.registrar("ADMIN_INSTITUCION_ALTA", "instituciones", guardada.getId(), null, "Institución creada");
+        return guardada;
     }
 
     @Transactional
@@ -124,7 +134,9 @@ public class AdminService {
         Institucion i = institucionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Institución no encontrada con id: " + id));
         applyInstitucion(i, request);
-        return institucionRepository.save(i);
+        Institucion guardada = institucionRepository.save(i);
+        auditService.registrar("ADMIN_INSTITUCION_EDICION", "instituciones", guardada.getId(), null, "Institución actualizada");
+        return guardada;
     }
 
     @Transactional
@@ -133,6 +145,7 @@ public class AdminService {
                 .orElseThrow(() -> new ResourceNotFoundException("Institución no encontrada con id: " + id));
         i.setActiva(false);
         institucionRepository.save(i);
+        auditService.registrar("ADMIN_INSTITUCION_BAJA", "instituciones", id, null, "Institución desactivada");
     }
 
     public List<Especialidad> listarEspecialidades() { return especialidadRepository.findAll(); }
@@ -214,7 +227,9 @@ public class AdminService {
         profesional.setEspecialidades(resolveEspecialidades(request.getEspecialidadIds()));
         profesional.setSedes(resolveInstitucionesAsSedes(profesional, request.getInstitucionIds()));
 
-        return toProfesionalResponse(profesionalRepository.save(profesional));
+        Profesional guardado = profesionalRepository.save(profesional);
+        auditService.registrar("ADMIN_PROFESIONAL_ALTA", "profesionales", guardado.getId(), null, "Profesional creado");
+        return toProfesionalResponse(guardado);
     }
 
     @Transactional
@@ -255,7 +270,9 @@ public class AdminService {
             profesional.getSedes().clear();
             profesional.getSedes().addAll(resolveInstitucionesAsSedes(profesional, request.getInstitucionIds()));
         }
-        return toProfesionalResponse(profesionalRepository.save(profesional));
+        Profesional guardado = profesionalRepository.save(profesional);
+        auditService.registrar("ADMIN_PROFESIONAL_EDICION", "profesionales", guardado.getId(), null, "Profesional actualizado");
+        return toProfesionalResponse(guardado);
     }
 
     @Transactional
@@ -265,6 +282,7 @@ public class AdminService {
         p.setActivo(false);
         p.getUsuario().setActivo(false);
         profesionalRepository.save(p);
+        auditService.registrar("ADMIN_PROFESIONAL_BAJA", "profesionales", id, null, "Profesional desactivado");
     }
 
     public List<AdminSecretariaResponse> listarSecretarias() {
@@ -293,7 +311,9 @@ public class AdminService {
         secretaria.setInstitucion(institucion);
         secretaria.setActiva(valueOrDefault(request.getActiva(), true));
 
-        return toSecretariaResponse(secretariaRepository.save(secretaria));
+        Secretaria guardada = secretariaRepository.save(secretaria);
+        auditService.registrar("ADMIN_SECRETARIA_ALTA", "secretarias", guardada.getId(), null, "Secretaría creada");
+        return toSecretariaResponse(guardada);
     }
 
     @Transactional
@@ -321,7 +341,9 @@ public class AdminService {
         }
         if (request.getTelefono() != null) secretaria.setTelefono(blankToNull(request.getTelefono()));
         if (request.getInstitucionId() != null) secretaria.setInstitucion(resolveInstitucion(request.getInstitucionId()));
-        return toSecretariaResponse(secretariaRepository.save(secretaria));
+        Secretaria guardada = secretariaRepository.save(secretaria);
+        auditService.registrar("ADMIN_SECRETARIA_EDICION", "secretarias", guardada.getId(), null, "Secretaría actualizada");
+        return toSecretariaResponse(guardada);
     }
 
     @Transactional
@@ -331,6 +353,7 @@ public class AdminService {
         s.setActiva(false);
         s.getUsuario().setActivo(false);
         secretariaRepository.save(s);
+        auditService.registrar("ADMIN_SECRETARIA_BAJA", "secretarias", id, null, "Secretaría desactivada");
     }
 
     public List<AdminPacienteResponse> listarPacientes() {
@@ -354,7 +377,9 @@ public class AdminService {
         Paciente paciente = new Paciente();
         paciente.setUsuario(usuario);
         applyPacienteBase(paciente, request.getNombre(), request.getApellido(), request.getDni(), request.getFechaNacimiento(), request.getTelefono(), request.getTipoSangre(), obraSocial, request.getNumeroCarnet(), request.getNumeroHistoriaClinica(), request.getInstitucionCabeceraId(), request.getMedicoCabeceraProfesionalId(), valueOrDefault(request.getActivo(), true));
-        return toPacienteResponse(pacienteRepository.save(paciente));
+        Paciente guardado = pacienteRepository.save(paciente);
+        auditService.registrar("ADMIN_PACIENTE_ALTA", "pacientes", guardado.getId(), null, "Paciente creado");
+        return toPacienteResponse(guardado);
     }
 
     @Transactional
@@ -416,7 +441,9 @@ public class AdminService {
             paciente.setMedicoCabecera(null);
         }
 
-        return toPacienteResponse(pacienteRepository.save(paciente));
+        Paciente guardado = pacienteRepository.save(paciente);
+        auditService.registrar("ADMIN_PACIENTE_EDICION", "pacientes", guardado.getId(), null, "Paciente actualizado");
+        return toPacienteResponse(guardado);
     }
 
     @Transactional
@@ -426,6 +453,7 @@ public class AdminService {
         p.setActivo(false);
         p.getUsuario().setActivo(false);
         pacienteRepository.save(p);
+        auditService.registrar("ADMIN_PACIENTE_BAJA", "pacientes", id, null, "Paciente desactivado");
     }
 
     private void applyInstitucion(Institucion i, AdminInstitucionRequest request) {

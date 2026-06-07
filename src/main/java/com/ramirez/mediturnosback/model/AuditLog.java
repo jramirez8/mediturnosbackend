@@ -30,6 +30,14 @@ public class AuditLog {
     @Column(length = 140)
     private String actor;
 
+    private Long actorUsuarioId;
+
+    @Column(length = 30)
+    private String actorRol;
+
+    @Column(length = 160)
+    private String actorEmail;
+
     @Column(length = 1200)
     private String detalle;
 

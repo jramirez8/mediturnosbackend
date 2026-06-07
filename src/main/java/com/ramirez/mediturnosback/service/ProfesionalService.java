@@ -69,6 +69,40 @@ public class ProfesionalService {
         return profesionalRepository.listarNombresEspecialidades();
     }
 
+
+
+    @Transactional(readOnly = true)
+    public List<ProfesionalDto> listarSedesPorUsuarioId(Long usuarioId) {
+        Profesional profesional = obtenerPorUsuarioId(usuarioId);
+        return profesionalInstitucionRepository.findByProfesionalIdAndActivoTrue(profesional.getId())
+                .stream()
+                .sorted(Comparator.comparing(pi -> pi.getInstitucion().getNombre(), String.CASE_INSENSITIVE_ORDER))
+                .flatMap(pi -> profesional.getEspecialidades().stream()
+                        .filter(e -> Boolean.TRUE.equals(e.getActiva()))
+                        .map(e -> new ProfesionalDto(
+                                profesional.getId(),
+                                pi.getId(),
+                                pi.getInstitucion().getId(),
+                                e.getId(),
+                                profesional.getNombre(),
+                                profesional.getApellido(),
+                                profesional.getMatricula(),
+                                e.getNombre(),
+                                firstNonBlank(pi.getTelefonoEnSede(), profesional.getTelefono(), pi.getInstitucion().getTelefono()),
+                                pi.getInstitucion().getNombre(),
+                                pi.getInstitucion().getDireccion(),
+                                profesional.getEmailCuenta(),
+                                profesional.getNombreCompleto()
+                        )))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ProfesionalDto obtenerPerfilActual(Long usuarioId) {
+        return listarSedesPorUsuarioId(usuarioId).stream().findFirst()
+                .orElseThrow(() -> new ResourceNotFoundException("El profesional no tiene sedes/especialidades activas"));
+    }
+
     @Transactional(readOnly = true)
     public Profesional obtenerPorId(Long id) {
         return profesionalRepository.findById(id)

@@ -32,6 +32,9 @@ public class TurnoAdjunto {
     @Column(nullable = false, length = 120)
     private String mimeType;
 
+    @Column(length = 60)
+    private String tipoDocumento;
+
     @Lob
     @Column(columnDefinition = "LONGTEXT")
     private String contenidoBase64;

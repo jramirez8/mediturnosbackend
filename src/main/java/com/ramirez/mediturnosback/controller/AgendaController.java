@@ -27,6 +27,11 @@ public class AgendaController {
         return agendaService.crearHorario(request);
     }
 
+    @PutMapping("/horarios/{id}")
+    public HorarioAtencionResponse actualizarHorario(@PathVariable Long id, @RequestBody HorarioAtencionRequest request) {
+        return agendaService.actualizarHorario(id, request);
+    }
+
     @DeleteMapping("/horarios/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void desactivarHorario(@PathVariable Long id) {
@@ -42,6 +47,11 @@ public class AgendaController {
     @ResponseStatus(HttpStatus.CREATED)
     public AgendaBloqueoResponse crearBloqueo(@RequestBody AgendaBloqueoRequest request) {
         return agendaService.crearBloqueo(request);
+    }
+
+    @PutMapping("/bloqueos/{id}")
+    public AgendaBloqueoResponse actualizarBloqueo(@PathVariable Long id, @RequestBody AgendaBloqueoRequest request) {
+        return agendaService.actualizarBloqueo(id, request);
     }
 
     @DeleteMapping("/bloqueos/{id}")

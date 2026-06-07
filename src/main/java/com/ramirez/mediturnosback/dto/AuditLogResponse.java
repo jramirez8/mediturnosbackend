@@ -14,6 +14,9 @@ public class AuditLogResponse {
     private String entidad;
     private Long entidadId;
     private String actor;
+    private Long actorUsuarioId;
+    private String actorRol;
+    private String actorEmail;
     private String detalle;
     private LocalDateTime creadoEn;
 }

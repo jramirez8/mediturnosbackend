@@ -61,6 +61,14 @@ public class JwtService {
         return leerLongClaim(parsearClaimsDesdeAuthorization(authorizationHeader), "pacienteId");
     }
 
+    public Long extraerProfesionalIdDesdeAuthorization(String authorizationHeader) {
+        return leerLongClaim(parsearClaimsDesdeAuthorization(authorizationHeader), "profesionalId");
+    }
+
+    public Long leerLongClaimPublic(Claims claims, String key) {
+        return leerLongClaim(claims, key);
+    }
+
     private String extraerBearerToken(String authorizationHeader) {
         if (authorizationHeader == null || authorizationHeader.isBlank()) {
             throw new IllegalArgumentException("Falta header Authorization Bearer");

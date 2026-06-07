@@ -67,8 +67,11 @@ public class TurnoController {
 
     @PostMapping(value = "/{id}/adjuntos", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public FileUploadResponse adjuntarDocumentacion(@PathVariable Long id, @RequestPart("file") MultipartFile file) {
-        return turnoService.adjuntarDocumentacion(id, file);
+    public FileUploadResponse adjuntarDocumentacion(@PathVariable Long id,
+                                                     @RequestPart("file") MultipartFile file,
+                                                     @RequestParam(value = "tipo", required = false) String tipoDocumento,
+                                                     @RequestParam(value = "tipoDocumento", required = false) String tipoDocumentoAlt) {
+        return turnoService.adjuntarDocumentacion(id, file, tipoDocumento != null ? tipoDocumento : tipoDocumentoAlt);
     }
 
     @GetMapping("/adjuntos/{adjuntoId}/archivo")

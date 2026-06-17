@@ -19,12 +19,14 @@ public class JwtService {
     private final long expirationSeconds;
 
     public JwtService(
-            @Value("${app.jwt.secret:mediturnos-demo-secret-key-cambiar-en-produccion-2026-uaDE}") String secret,
+            @Value("${app.jwt.secret:}") String secret,
             @Value("${app.jwt.expiration-seconds:86400}") long expirationSeconds
     ) {
-        String normalizedSecret = secret == null ? "" : secret;
+        String normalizedSecret = secret == null ? "" : secret.trim();
         if (normalizedSecret.length() < 32) {
-            normalizedSecret = (normalizedSecret + "-mediturnos-demo-secret-key-cambiar").substring(0, 32);
+            throw new IllegalStateException(
+                    "APP_JWT_SECRET es obligatoria y debe tener al menos 32 caracteres."
+            );
         }
         this.key = Keys.hmacShaKeyFor(normalizedSecret.getBytes(StandardCharsets.UTF_8));
         this.expirationSeconds = expirationSeconds;

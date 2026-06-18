@@ -48,5 +48,7 @@ public class Consulta {
     @Lob
     private String hallazgosExamenFisico;
     @Lob
+    private String diagnostico;
+    @Lob
     private String conducta;
 }

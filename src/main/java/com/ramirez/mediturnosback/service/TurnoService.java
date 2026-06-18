@@ -157,6 +157,16 @@ public class TurnoService {
     }
 
     @Transactional(readOnly = true)
+    public List<TurnoResponse> agendaProfesionalRango(Long usuarioId, LocalDate desde, LocalDate hasta) {
+        if (desde == null || hasta == null) throw new IllegalArgumentException("Faltan las fechas desde y hasta");
+        if (hasta.isBefore(desde)) throw new IllegalArgumentException("La fecha hasta no puede ser anterior a desde");
+        if (desde.plusYears(1).isBefore(hasta)) throw new IllegalArgumentException("El rango máximo permitido es de un año");
+        LocalDateTime from = desde.atStartOfDay();
+        LocalDateTime to = hasta.atTime(LocalTime.MAX);
+        return turnoRepository.findAgendaProfesional(usuarioId, from, to).stream().map(this::mapTurno).toList();
+    }
+
+    @Transactional(readOnly = true)
     public TurnoResponse proximoTurnoProfesional(Long usuarioId) {
         return turnoRepository.findFirstByProfesionalUsuario_IdAndFechaHoraInicioAfterAndEstadoInOrderByFechaHoraInicioAsc(
                         usuarioId, appClock.now(), List.of(EstadoTurno.PENDIENTE, EstadoTurno.CONFIRMADO, EstadoTurno.REPROGRAMADO))
@@ -329,6 +339,7 @@ public class TurnoService {
         consulta.setAlergias(normalizar(request.getAlergias()));
         consulta.setHabitos(normalizar(request.getHabitos()));
         consulta.setHallazgosExamenFisico(normalizar(request.getHallazgosExamenFisico()));
+        consulta.setDiagnostico(normalizar(request.getDiagnostico()));
         consulta.setConducta(normalizar(request.getConducta()));
         consultaRepository.save(consulta);
         turno.setConsulta(consulta);
@@ -545,6 +556,7 @@ public class TurnoService {
                 consulta != null ? consulta.getAlergias() : null,
                 consulta != null ? consulta.getHabitos() : null,
                 consulta != null ? consulta.getHallazgosExamenFisico() : null,
+                consulta != null ? consulta.getDiagnostico() : null,
                 consulta != null ? consulta.getConducta() : null
         );
     }

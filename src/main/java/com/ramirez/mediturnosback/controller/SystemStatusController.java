@@ -46,7 +46,7 @@ public class SystemStatusController {
         status.put("brevo", brevoApiKey == null || brevoApiKey.isBlank() ? "SIN_CONFIGURAR" : "OK");
         status.put("resetUrl", resetUrl == null || resetUrl.isBlank() ? "SIN_CONFIGURAR" : "OK");
         status.put("verifyUrl", verifyUrl == null || verifyUrl.isBlank() ? "SIN_CONFIGURAR" : "OK");
-        status.put("version", "v14");
+        status.put("version", "v15.4");
         return status;
     }
 

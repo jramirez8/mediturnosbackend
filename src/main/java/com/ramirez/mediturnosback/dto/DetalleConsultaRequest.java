@@ -13,5 +13,6 @@ public class DetalleConsultaRequest {
     private String alergias;
     private String habitos;
     private String hallazgosExamenFisico;
+    private String diagnostico;
     private String conducta;
 }

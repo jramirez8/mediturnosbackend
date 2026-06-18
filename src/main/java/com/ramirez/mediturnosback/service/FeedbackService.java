@@ -55,8 +55,14 @@ public class FeedbackService {
     }
 
     public List<FeedbackTurnoResponse> ultimos() {
-        currentUserService.requireAnyRole(RolUsuario.ADMIN, RolUsuario.SECRETARY);
-        return feedbackTurnoRepository.findTop50ByOrderByCreadoEnDesc().stream().map(this::map).toList();
+        AuthenticatedUser user = currentUserService.requireAnyRole(RolUsuario.ADMIN, RolUsuario.SECRETARY, RolUsuario.PROFESSIONAL);
+        return feedbackTurnoRepository.findTop50ByOrderByCreadoEnDesc().stream()
+                .filter(feedback -> !user.isProfessional()
+                        || (feedback.getTurno() != null
+                        && feedback.getTurno().getProfesional() != null
+                        && Objects.equals(feedback.getTurno().getProfesional().getId(), user.profesionalId())))
+                .map(this::map)
+                .toList();
     }
 
     private void validarPacienteDelTurno(Turno turno) {
@@ -75,6 +81,18 @@ public class FeedbackService {
     }
 
     private FeedbackTurnoResponse map(FeedbackTurno f) {
-        return new FeedbackTurnoResponse(f.getId(), f.getTurno().getId(), f.getPuntuacion(), f.getComentario(), f.getCreadoEn());
+        Turno turno = f.getTurno();
+        String profesionalNombre = turno != null && turno.getProfesional() != null
+                ? (turno.getProfesional().getNombre() + " " + turno.getProfesional().getApellido()).trim()
+                : null;
+        return new FeedbackTurnoResponse(
+                f.getId(),
+                turno != null ? turno.getId() : null,
+                turno != null && turno.getProfesional() != null ? turno.getProfesional().getId() : null,
+                profesionalNombre,
+                f.getPuntuacion(),
+                f.getComentario(),
+                f.getCreadoEn()
+        );
     }
 }

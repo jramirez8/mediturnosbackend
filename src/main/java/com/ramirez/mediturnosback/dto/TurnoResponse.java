@@ -48,5 +48,6 @@ public class TurnoResponse {
     private String alergias;
     private String habitos;
     private String hallazgosExamenFisico;
+    private String diagnostico;
     private String conducta;
 }

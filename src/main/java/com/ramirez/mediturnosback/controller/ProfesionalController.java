@@ -55,6 +55,23 @@ public class ProfesionalController {
         return turnoService.agendaProfesional(user.usuarioId(), fecha);
     }
 
+    @GetMapping("/agenda/me/rango")
+    public List<TurnoResponse> agendaPropiaRango(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+        AuthenticatedUser user = currentUserService.requireAnyRole(RolUsuario.PROFESSIONAL, RolUsuario.ADMIN);
+        return turnoService.agendaProfesionalRango(user.usuarioId(), desde, hasta);
+    }
+
+    @GetMapping("/agenda/{usuarioId}/rango")
+    public List<TurnoResponse> agendaRango(
+            @PathVariable Long usuarioId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate desde,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate hasta) {
+        validarProfesionalSolicitado(usuarioId);
+        return turnoService.agendaProfesionalRango(usuarioId, desde, hasta);
+    }
+
     @GetMapping("/agenda/{usuarioId}")
     public List<TurnoResponse> agenda(@PathVariable Long usuarioId,
                                       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fecha) {

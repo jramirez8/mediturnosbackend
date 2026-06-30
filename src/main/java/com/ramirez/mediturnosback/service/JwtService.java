@@ -76,7 +76,10 @@ public class JwtService {
             throw new IllegalArgumentException("Falta header Authorization Bearer");
         }
         String value = authorizationHeader.trim();
-        if (value.regionMatches(true, 0, "Bearer ", 0, 7)) {
+        if (value.equalsIgnoreCase("Bearer")) {
+            throw new IllegalArgumentException("Token JWT vacío");
+        }
+        if (value.length() > 6 && value.regionMatches(true, 0, "Bearer", 0, 6) && Character.isWhitespace(value.charAt(6))) {
             value = value.substring(7).trim();
         }
         if (value.isBlank()) {

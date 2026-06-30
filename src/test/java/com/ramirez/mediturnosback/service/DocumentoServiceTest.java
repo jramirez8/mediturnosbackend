@@ -1,5 +1,6 @@
 package com.ramirez.mediturnosback.service;
 
+import com.ramirez.mediturnosback.dto.PacienteDocumentoResponse;
 import com.ramirez.mediturnosback.model.*;
 import com.ramirez.mediturnosback.repository.PacienteDocumentoRepository;
 import com.ramirez.mediturnosback.repository.PacienteRepository;
@@ -75,7 +76,7 @@ class DocumentoServiceTest {
 
         var result = service.listarPorPaciente(3L, true);
 
-        assertThat(result).singleElement().extracting("archivado").isEqualTo(true);
+        assertThat(result).singleElement().extracting(PacienteDocumentoResponse::archivado).isEqualTo(true);
         verify(documentoRepository).findByPacienteIdOrderByCreadoEnDesc(3L);
     }
 

@@ -74,7 +74,7 @@ public class DocumentoService {
                 throw new IllegalArgumentException("El turno no pertenece al paciente seleccionado");
             }
         }
-        validarEscritura(paciente, turno);
+        validarEscritura(paciente);
         MediaFileService.StoredFile stored = mediaFileService.storeMedicalDocument(file, "pacientes/documentos", pacienteId);
         AuthenticatedUser user = currentUserService.requireUser();
 
@@ -136,7 +136,7 @@ public class DocumentoService {
         throw new AccessDeniedException("No podés acceder a documentos de este paciente");
     }
 
-    private void validarEscritura(Paciente paciente, Turno turno) {
+    private void validarEscritura(Paciente paciente) {
         AuthenticatedUser user = currentUserService.requireUser();
         if (user.isAdmin() || user.isSecretary()) return;
         if (user.isPatient() && Objects.equals(user.pacienteId(), paciente.getId())) return;

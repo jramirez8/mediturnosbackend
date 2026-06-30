@@ -71,7 +71,7 @@ public class VerificationDispatchService {
         return enviado;
     }
 
-    public void enviarValidacionWhatsapp(Paciente paciente, String verificationCode) {
+    public void enviarValidacionWhatsapp(Paciente paciente) {
         log.info("WHATSAPP no implementado | Para: {} | Paciente: {} {}",
                 paciente.getTelefono(), paciente.getNombre(), paciente.getApellido());
     }

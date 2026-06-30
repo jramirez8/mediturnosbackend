@@ -14,6 +14,9 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/system")
 public class SystemStatusController {
+    private static final String STATUS_OK = "OK";
+    private static final String STATUS_ERROR = "ERROR";
+    private static final String STATUS_SIN_CONFIGURAR = "SIN_CONFIGURAR";
 
     private final JdbcTemplate jdbcTemplate;
     private final CurrentUserService currentUserService;
@@ -39,23 +42,27 @@ public class SystemStatusController {
     public Map<String, Object> diagnostico() {
         currentUserService.requireAnyRole(RolUsuario.ADMIN);
         Map<String, Object> status = new LinkedHashMap<>();
-        status.put("backend", "OK");
+        status.put("backend", STATUS_OK);
         status.put("db", checkDb());
-        status.put("auth", "OK");
-        status.put("uploads", uploadDir == null || uploadDir.isBlank() ? "SIN_CONFIGURAR" : "OK");
-        status.put("brevo", brevoApiKey == null || brevoApiKey.isBlank() ? "SIN_CONFIGURAR" : "OK");
-        status.put("resetUrl", resetUrl == null || resetUrl.isBlank() ? "SIN_CONFIGURAR" : "OK");
-        status.put("verifyUrl", verifyUrl == null || verifyUrl.isBlank() ? "SIN_CONFIGURAR" : "OK");
+        status.put("auth", STATUS_OK);
+        status.put("uploads", statusConfiguracion(uploadDir));
+        status.put("brevo", statusConfiguracion(brevoApiKey));
+        status.put("resetUrl", statusConfiguracion(resetUrl));
+        status.put("verifyUrl", statusConfiguracion(verifyUrl));
         status.put("version", "v15.4");
         return status;
+    }
+
+    private String statusConfiguracion(String value) {
+        return value == null || value.isBlank() ? STATUS_SIN_CONFIGURAR : STATUS_OK;
     }
 
     private String checkDb() {
         try {
             Integer one = jdbcTemplate.queryForObject("select 1", Integer.class);
-            return one != null && one == 1 ? "OK" : "ERROR";
+            return one != null && one == 1 ? STATUS_OK : STATUS_ERROR;
         } catch (Exception e) {
-            return "ERROR";
+            return STATUS_ERROR;
         }
     }
 }

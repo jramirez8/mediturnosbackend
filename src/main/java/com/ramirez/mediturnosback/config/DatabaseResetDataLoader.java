@@ -56,17 +56,41 @@ public class DatabaseResetDataLoader {
     }
 
     private void disableFkChecks(JdbcTemplate jdbcTemplate) {
-        try { jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS=0"); } catch (Exception ignored) {}
-        try { jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE"); } catch (Exception ignored) {}
+        try {
+            jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS=0");
+        } catch (Exception ignored) {
+            // MySQL/MariaDB only.
+        }
+        try {
+            jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY FALSE");
+        } catch (Exception ignored) {
+            // H2 only.
+        }
     }
 
     private void enableFkChecks(JdbcTemplate jdbcTemplate) {
-        try { jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE"); } catch (Exception ignored) {}
-        try { jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS=1"); } catch (Exception ignored) {}
+        try {
+            jdbcTemplate.execute("SET REFERENTIAL_INTEGRITY TRUE");
+        } catch (Exception ignored) {
+            // H2 only.
+        }
+        try {
+            jdbcTemplate.execute("SET FOREIGN_KEY_CHECKS=1");
+        } catch (Exception ignored) {
+            // MySQL/MariaDB only.
+        }
     }
 
     private void resetAutoIncrement(JdbcTemplate jdbcTemplate, String table) {
-        try { jdbcTemplate.execute("ALTER TABLE " + table + " AUTO_INCREMENT = 1"); } catch (Exception ignored) {}
-        try { jdbcTemplate.execute("ALTER TABLE " + table + " ALTER COLUMN id RESTART WITH 1"); } catch (Exception ignored) {}
+        try {
+            jdbcTemplate.execute("ALTER TABLE " + table + " AUTO_INCREMENT = 1");
+        } catch (Exception ignored) {
+            // MySQL/MariaDB only.
+        }
+        try {
+            jdbcTemplate.execute("ALTER TABLE " + table + " ALTER COLUMN id RESTART WITH 1");
+        } catch (Exception ignored) {
+            // H2 only.
+        }
     }
 }

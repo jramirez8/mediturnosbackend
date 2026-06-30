@@ -63,6 +63,7 @@ public class ProfesionalDataLoader {
         };
     }
 
+    @SuppressWarnings("java:S107")
     private void crearProfesional(ProfesionalRepository profesionalRepository,
                                   UsuarioRepository usuarioRepository,
                                   PasswordEncoder passwordEncoder,

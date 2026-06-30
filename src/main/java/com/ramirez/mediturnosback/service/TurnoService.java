@@ -21,6 +21,8 @@ import java.util.*;
 public class TurnoService {
 
     private static final int DURACION_MINUTOS = 30;
+    private static final String TABLA_TURNOS = "turnos";
+    private static final String MIME_IMAGE_JPEG = "image/jpeg";
 
     private final TurnoRepository turnoRepository;
     private final PacienteRepository pacienteRepository;
@@ -209,7 +211,7 @@ public class TurnoService {
             TurnoAdjunto adjunto = new TurnoAdjunto();
             adjunto.setTurno(guardado);
             adjunto.setNombreArchivo(defaultIfBlank(request.getDocumentacionNombreArchivo(), "documentacion.jpg"));
-            adjunto.setMimeType(defaultIfBlank(request.getDocumentacionMimeType(), "image/jpeg"));
+            adjunto.setMimeType(defaultIfBlank(request.getDocumentacionMimeType(), MIME_IMAGE_JPEG));
             adjunto.setContenidoBase64(request.getDocumentacionBase64());
             turnoAdjuntoRepository.save(adjunto);
             guardado.getAdjuntos().add(adjunto);
@@ -220,7 +222,7 @@ public class TurnoService {
                 ? guardado.getPaciente().getUsuario().getEmail()
                 : null;
         verificationDispatchService.enviarConfirmacionTurno(response, emailPaciente);
-        auditService.registrar("TURNO_ALTA", "turnos", guardado.getId(), null, "Turno creado para " + guardado.getFechaHoraInicio());
+        auditService.registrar("TURNO_ALTA", TABLA_TURNOS, guardado.getId(), null, "Turno creado para " + guardado.getFechaHoraInicio());
         return response;
     }
 
@@ -233,7 +235,7 @@ public class TurnoService {
     public FileUploadResponse adjuntarDocumentacion(Long turnoId, MultipartFile file, String tipoDocumento) {
         Turno turno = obtenerEntidadPorId(turnoId);
         validarPacienteOAdministrativo(turno);
-        MediaFileService.StoredFile stored = mediaFileService.storeMedicalDocument(file, "turnos", turnoId);
+        MediaFileService.StoredFile stored = mediaFileService.storeMedicalDocument(file, TABLA_TURNOS, turnoId);
 
         TurnoAdjunto adjunto = new TurnoAdjunto();
         adjunto.setTurno(turno);
@@ -287,7 +289,7 @@ public class TurnoService {
         turno.setEspecialidad(especialidad);
         turno.setEstado(EstadoTurno.CONFIRMADO);
         Turno guardado = turnoRepository.save(turno);
-        auditService.registrar("TURNO_REPROGRAMADO", "turnos", turnoId, null, "Turno reprogramado para " + request.getFechaHora());
+        auditService.registrar("TURNO_REPROGRAMADO", TABLA_TURNOS, turnoId, null, "Turno reprogramado para " + request.getFechaHora());
         return mapTurno(guardado);
     }
 
@@ -298,7 +300,7 @@ public class TurnoService {
         if (request.getEstado() == null) throw new IllegalArgumentException("Falta estado");
         turno.setEstado(request.getEstado());
         TurnoResponse response = mapTurno(turnoRepository.save(turno));
-        auditService.registrar("TURNO_ESTADO", "turnos", turnoId, null, "Estado actualizado a " + request.getEstado());
+        auditService.registrar("TURNO_ESTADO", TABLA_TURNOS, turnoId, null, "Estado actualizado a " + request.getEstado());
         if (request.getEstado() == EstadoTurno.CANCELADO) {
             listaEsperaService.notificarPrimerPendienteCompatible(turno, response);
         }
@@ -316,7 +318,7 @@ public class TurnoService {
         turno.setAsistenciaConfirmadaEn(appClock.now());
         turno.setEstado(EstadoTurno.CONFIRMADO);
         TurnoResponse response = mapTurno(turnoRepository.save(turno));
-        auditService.registrar("TURNO_ASISTENCIA_CONFIRMADA", "turnos", turnoId, null, "Paciente confirmó asistencia");
+        auditService.registrar("TURNO_ASISTENCIA_CONFIRMADA", TABLA_TURNOS, turnoId, null, "Paciente confirmó asistencia");
         return response;
     }
 
@@ -345,7 +347,7 @@ public class TurnoService {
         turno.setConsulta(consulta);
         turno.setEstado(EstadoTurno.ATENDIDO);
         Turno guardado = turnoRepository.save(turno);
-        auditService.registrar("TURNO_ATENDIDO", "turnos", turnoId, null, "Consulta cargada por profesional");
+        auditService.registrar("TURNO_ATENDIDO", TABLA_TURNOS, turnoId, null, "Consulta cargada por profesional");
         return mapTurno(guardado);
     }
 
@@ -355,7 +357,7 @@ public class TurnoService {
         currentUserService.requireAnyRole(RolUsuario.ADMIN, RolUsuario.SECRETARY);
         turno.setEstado(EstadoTurno.CANCELADO);
         turnoRepository.save(turno);
-        auditService.registrar("TURNO_CANCELADO", "turnos", id, null, "Turno cancelado desde endpoint de eliminación lógica");
+        auditService.registrar("TURNO_CANCELADO", TABLA_TURNOS, id, null, "Turno cancelado desde endpoint de eliminación lógica");
     }
 
     private Turno obtenerEntidadPorId(Long id) {
@@ -516,7 +518,7 @@ public class TurnoService {
     }
 
     private TurnoResponse mapTurno(Turno turno) {
-        TurnoAdjunto adjunto = turno.getAdjuntos() != null && !turno.getAdjuntos().isEmpty() ? turno.getAdjuntos().get(0) : null;
+        TurnoAdjunto adjunto = primerAdjunto(turno);
         Consulta consulta = turno.getConsulta();
         return new TurnoResponse(
                 turno.getId(),
@@ -524,41 +526,171 @@ public class TurnoService {
                 turno.getFechaHoraFin(),
                 turno.getEstado(),
                 turno.getObservacionesPaciente(),
-                turno.getProfesionalInstitucion() != null ? turno.getProfesionalInstitucion().getInstitucion().getId() : null,
-                turno.getProfesionalInstitucion() != null ? turno.getProfesionalInstitucion().getInstitucion().getNombre() : null,
-                turno.getProfesionalInstitucion() != null ? turno.getProfesionalInstitucion().getInstitucion().getDireccion() : null,
-                turno.getPaciente() != null ? turno.getPaciente().getId() : null,
-                turno.getPaciente() != null ? turno.getPaciente().getNombre() : null,
-                turno.getPaciente() != null ? turno.getPaciente().getApellido() : null,
-                turno.getPaciente() != null ? turno.getPaciente().getDni() : null,
-                turno.getProfesional() != null ? turno.getProfesional().getId() : null,
-                turno.getProfesionalInstitucion() != null ? turno.getProfesionalInstitucion().getId() : null,
-                turno.getProfesional() != null ? turno.getProfesional().getNombre() : null,
-                turno.getProfesional() != null ? turno.getProfesional().getApellido() : null,
-                turno.getEspecialidad() != null ? turno.getEspecialidad().getId() : null,
-                turno.getEspecialidad() != null ? turno.getEspecialidad().getNombre() : null,
-                turno.getProfesionalInstitucion() != null && turno.getProfesionalInstitucion().getTelefonoEnSede() != null ? turno.getProfesionalInstitucion().getTelefonoEnSede() : turno.getProfesional() != null ? turno.getProfesional().getTelefono() : null,
-                adjunto != null ? adjunto.getNombreArchivo() : null,
-                adjunto != null ? adjunto.getMimeType() : null,
-                adjunto != null ? adjunto.getContenidoBase64() : null,
-                adjunto != null ? adjunto.getId() : null,
+                institucionId(turno),
+                institucionNombre(turno),
+                institucionDireccion(turno),
+                pacienteId(turno),
+                pacienteNombre(turno),
+                pacienteApellido(turno),
+                pacienteDni(turno),
+                profesionalId(turno),
+                profesionalInstitucionId(turno),
+                profesionalNombre(turno),
+                profesionalApellido(turno),
+                especialidadId(turno),
+                especialidadNombre(turno),
+                telefonoContacto(turno),
+                adjuntoNombre(adjunto),
+                adjuntoMimeType(adjunto),
+                adjuntoContenidoBase64(adjunto),
+                adjuntoId(adjunto),
                 adjuntoUrl(adjunto),
-                adjunto != null ? adjunto.getCompressedSizeBytes() : null,
+                adjuntoCompressedSizeBytes(adjunto),
                 turno.getAsistenciaConfirmada(),
                 turno.getAsistenciaConfirmadaEn(),
                 turno.getRecordatorioTresHorasEnviado(),
-                consulta != null ? consulta.getMotivoConsulta() : null,
-                consulta != null ? consulta.getEnfermedadActual() : null,
-                consulta != null ? consulta.getAntecedenteEnfermedadActual() : null,
-                consulta != null ? consulta.getAntecedentesPersonales() : null,
-                consulta != null ? consulta.getAntecedentesFamiliares() : null,
-                consulta != null ? consulta.getMedicacionActual() : null,
-                consulta != null ? consulta.getAlergias() : null,
-                consulta != null ? consulta.getHabitos() : null,
-                consulta != null ? consulta.getHallazgosExamenFisico() : null,
-                consulta != null ? consulta.getDiagnostico() : null,
-                consulta != null ? consulta.getConducta() : null
+                motivoConsulta(consulta),
+                enfermedadActual(consulta),
+                antecedenteEnfermedadActual(consulta),
+                antecedentesPersonales(consulta),
+                antecedentesFamiliares(consulta),
+                medicacionActual(consulta),
+                alergias(consulta),
+                habitos(consulta),
+                hallazgosExamenFisico(consulta),
+                diagnostico(consulta),
+                conducta(consulta)
         );
+    }
+
+    private TurnoAdjunto primerAdjunto(Turno turno) {
+        return turno.getAdjuntos() != null && !turno.getAdjuntos().isEmpty() ? turno.getAdjuntos().get(0) : null;
+    }
+
+    private Long institucionId(Turno turno) {
+        return turno.getProfesionalInstitucion() != null ? turno.getProfesionalInstitucion().getInstitucion().getId() : null;
+    }
+
+    private String institucionNombre(Turno turno) {
+        return turno.getProfesionalInstitucion() != null ? turno.getProfesionalInstitucion().getInstitucion().getNombre() : null;
+    }
+
+    private String institucionDireccion(Turno turno) {
+        return turno.getProfesionalInstitucion() != null ? turno.getProfesionalInstitucion().getInstitucion().getDireccion() : null;
+    }
+
+    private Long pacienteId(Turno turno) {
+        return turno.getPaciente() != null ? turno.getPaciente().getId() : null;
+    }
+
+    private String pacienteNombre(Turno turno) {
+        return turno.getPaciente() != null ? turno.getPaciente().getNombre() : null;
+    }
+
+    private String pacienteApellido(Turno turno) {
+        return turno.getPaciente() != null ? turno.getPaciente().getApellido() : null;
+    }
+
+    private String pacienteDni(Turno turno) {
+        return turno.getPaciente() != null ? turno.getPaciente().getDni() : null;
+    }
+
+    private Long profesionalId(Turno turno) {
+        return turno.getProfesional() != null ? turno.getProfesional().getId() : null;
+    }
+
+    private Long profesionalInstitucionId(Turno turno) {
+        return turno.getProfesionalInstitucion() != null ? turno.getProfesionalInstitucion().getId() : null;
+    }
+
+    private String profesionalNombre(Turno turno) {
+        return turno.getProfesional() != null ? turno.getProfesional().getNombre() : null;
+    }
+
+    private String profesionalApellido(Turno turno) {
+        return turno.getProfesional() != null ? turno.getProfesional().getApellido() : null;
+    }
+
+    private Long especialidadId(Turno turno) {
+        return turno.getEspecialidad() != null ? turno.getEspecialidad().getId() : null;
+    }
+
+    private String especialidadNombre(Turno turno) {
+        return turno.getEspecialidad() != null ? turno.getEspecialidad().getNombre() : null;
+    }
+
+    private String adjuntoNombre(TurnoAdjunto adjunto) {
+        return adjunto != null ? adjunto.getNombreArchivo() : null;
+    }
+
+    private String adjuntoMimeType(TurnoAdjunto adjunto) {
+        return adjunto != null ? adjunto.getMimeType() : null;
+    }
+
+    private String adjuntoContenidoBase64(TurnoAdjunto adjunto) {
+        return adjunto != null ? adjunto.getContenidoBase64() : null;
+    }
+
+    private Long adjuntoId(TurnoAdjunto adjunto) {
+        return adjunto != null ? adjunto.getId() : null;
+    }
+
+    private Long adjuntoCompressedSizeBytes(TurnoAdjunto adjunto) {
+        return adjunto != null ? adjunto.getCompressedSizeBytes() : null;
+    }
+
+    private String motivoConsulta(Consulta consulta) {
+        return consulta != null ? consulta.getMotivoConsulta() : null;
+    }
+
+    private String enfermedadActual(Consulta consulta) {
+        return consulta != null ? consulta.getEnfermedadActual() : null;
+    }
+
+    private String antecedenteEnfermedadActual(Consulta consulta) {
+        return consulta != null ? consulta.getAntecedenteEnfermedadActual() : null;
+    }
+
+    private String antecedentesPersonales(Consulta consulta) {
+        return consulta != null ? consulta.getAntecedentesPersonales() : null;
+    }
+
+    private String antecedentesFamiliares(Consulta consulta) {
+        return consulta != null ? consulta.getAntecedentesFamiliares() : null;
+    }
+
+    private String medicacionActual(Consulta consulta) {
+        return consulta != null ? consulta.getMedicacionActual() : null;
+    }
+
+    private String alergias(Consulta consulta) {
+        return consulta != null ? consulta.getAlergias() : null;
+    }
+
+    private String habitos(Consulta consulta) {
+        return consulta != null ? consulta.getHabitos() : null;
+    }
+
+    private String hallazgosExamenFisico(Consulta consulta) {
+        return consulta != null ? consulta.getHallazgosExamenFisico() : null;
+    }
+
+    private String diagnostico(Consulta consulta) {
+        return consulta != null ? consulta.getDiagnostico() : null;
+    }
+
+    private String conducta(Consulta consulta) {
+        return consulta != null ? consulta.getConducta() : null;
+    }
+
+    private String telefonoContacto(Turno turno) {
+        if (turno.getProfesionalInstitucion() != null && turno.getProfesionalInstitucion().getTelefonoEnSede() != null) {
+            return turno.getProfesionalInstitucion().getTelefonoEnSede();
+        }
+        if (turno.getProfesional() != null) {
+            return turno.getProfesional().getTelefono();
+        }
+        return null;
     }
 
     private String adjuntoUrl(TurnoAdjunto adjunto) {
@@ -578,6 +710,15 @@ public class TurnoService {
         };
     }
 
-    private String defaultIfBlank(String value, String defaultValue) { return value == null || value.isBlank() ? defaultValue : value; }
-    private String normalizar(String value) { if (value == null) return null; String trimmed = value.trim(); return trimmed.isEmpty() ? null : trimmed; }
+    private String defaultIfBlank(String value, String defaultValue) {
+        return value == null || value.isBlank() ? defaultValue : value;
+    }
+
+    private String normalizar(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
 }

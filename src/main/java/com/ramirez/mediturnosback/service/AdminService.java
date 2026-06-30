@@ -8,16 +8,27 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 public class AdminService {
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final String TABLA_USUARIOS = "usuarios";
+    private static final String TABLA_PACIENTES = "pacientes";
+    private static final String TABLA_PROFESIONALES = "profesionales";
+    private static final String TABLA_SECRETARIAS = "secretarias";
+    private static final String TABLA_INSTITUCIONES = "instituciones";
+    private static final String USUARIO_NO_ENCONTRADO = "Usuario no encontrado con id: ";
+    private static final String INSTITUCION_NO_ENCONTRADA = "Institución no encontrada con id: ";
+    private static final String ESPECIALIDAD_NO_ENCONTRADA = "Especialidad no encontrada con id: ";
+    private static final String OBRA_SOCIAL_NO_ENCONTRADA = "Obra social no encontrada con id: ";
+    private static final String PROFESIONAL_NO_ENCONTRADO = "Profesional no encontrado con id: ";
 
     private final UsuarioRepository usuarioRepository;
     private final PacienteRepository pacienteRepository;
@@ -60,12 +71,12 @@ public class AdminService {
 
     public Map<String, Object> resumen() {
         Map<String, Object> out = new LinkedHashMap<>();
-        out.put("usuarios", usuarioRepository.count());
-        out.put("pacientes", pacienteRepository.count());
-        out.put("profesionales", profesionalRepository.count());
-        out.put("secretarias", secretariaRepository.count());
+        out.put(TABLA_USUARIOS, usuarioRepository.count());
+        out.put(TABLA_PACIENTES, pacienteRepository.count());
+        out.put(TABLA_PROFESIONALES, profesionalRepository.count());
+        out.put(TABLA_SECRETARIAS, secretariaRepository.count());
         out.put("turnos", turnoRepository.count());
-        out.put("instituciones", institucionRepository.count());
+        out.put(TABLA_INSTITUCIONES, institucionRepository.count());
         out.put("especialidades", especialidadRepository.count());
         out.put("obrasSociales", obraSocialRepository.count());
         out.put("horariosAtencion", horarioAtencionRepository.count());
@@ -94,14 +105,14 @@ public class AdminService {
         usuario.setActivo(valueOrDefault(request.getActivo(), true));
         usuario.setEmailVerificado(valueOrDefault(request.getEmailVerificado(), true));
         Usuario guardado = usuarioRepository.save(usuario);
-        auditService.registrar("ADMIN_USUARIO_ALTA", "usuarios", guardado.getId(), null, "Usuario creado");
+        auditService.registrar("ADMIN_USUARIO_ALTA", TABLA_USUARIOS, guardado.getId(), null, "Usuario creado");
         return toUsuarioResponse(guardado);
     }
 
     @Transactional
     public AdminUsuarioResponse actualizarUsuario(Long id, AdminUsuarioUpdateRequest request) {
         Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(USUARIO_NO_ENCONTRADO + id));
         if (request.getEmail() != null && !request.getEmail().isBlank()) {
             validarEmailUnico(request.getEmail(), usuario.getId());
             usuario.setEmail(normalizeEmail(request.getEmail()));
@@ -117,39 +128,39 @@ public class AdminService {
         if (request.getActivo() != null) usuario.setActivo(request.getActivo());
         if (request.getEmailVerificado() != null) usuario.setEmailVerificado(request.getEmailVerificado());
         Usuario guardado = usuarioRepository.save(usuario);
-        auditService.registrar("ADMIN_USUARIO_EDICION", "usuarios", guardado.getId(), null, "Usuario actualizado");
+        auditService.registrar("ADMIN_USUARIO_EDICION", TABLA_USUARIOS, guardado.getId(), null, "Usuario actualizado");
         return toUsuarioResponse(guardado);
     }
 
     @Transactional
     public void desactivarUsuario(Long id) {
         Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(USUARIO_NO_ENCONTRADO + id));
         usuario.setActivo(false);
         if (usuario.getPaciente() != null) usuario.getPaciente().setActivo(false);
         if (usuario.getProfesional() != null) usuario.getProfesional().setActivo(false);
         if (usuario.getSecretaria() != null) usuario.getSecretaria().setActiva(false);
         usuarioRepository.save(usuario);
-        auditService.registrar("ADMIN_USUARIO_BAJA", "usuarios", id, null, "Usuario desactivado");
+        auditService.registrar("ADMIN_USUARIO_BAJA", TABLA_USUARIOS, id, null, "Usuario desactivado");
     }
 
     @Transactional
     public Map<String, Object> reenviarVerificacionUsuario(Long id) {
         Usuario usuario = usuarioRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(USUARIO_NO_ENCONTRADO + id));
         if (Boolean.TRUE.equals(usuario.getEmailVerificado())) {
             return Map.of("ok", true, "message", "La cuenta ya está verificada.");
         }
         if (usuario.getPaciente() == null) {
             throw new IllegalArgumentException("Solo se puede reenviar verificación a cuentas de pacientes creadas con ficha clínica.");
         }
-        String codigo = String.format("%06d", ThreadLocalRandom.current().nextInt(0, 1_000_000));
+        String codigo = String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
         usuario.setTokenVerificacion(codigo);
         usuario.setTokenVerificacionExpiraEn(LocalDateTime.now().plusMinutes(15));
         usuarioRepository.save(usuario);
         boolean enviado = verificationDispatchService.enviarCodigoValidacionEmail(usuario, usuario.getPaciente(), codigo);
         if (!enviado) throw new IllegalStateException("No se pudo enviar el correo de verificación. Revisá Brevo.");
-        auditService.registrar("ADMIN_REENVIO_VERIFICACION", "usuarios", usuario.getId(), null, "Código de verificación reenviado a " + usuario.getEmail());
+        auditService.registrar("ADMIN_REENVIO_VERIFICACION", TABLA_USUARIOS, usuario.getId(), null, "Código de verificación reenviado a " + usuario.getEmail());
         return Map.of("ok", true, "message", "Código de verificación reenviado.");
     }
 
@@ -160,27 +171,27 @@ public class AdminService {
         Institucion i = new Institucion();
         applyInstitucion(i, request);
         Institucion guardada = institucionRepository.save(i);
-        auditService.registrar("ADMIN_INSTITUCION_ALTA", "instituciones", guardada.getId(), null, "Institución creada");
+        auditService.registrar("ADMIN_INSTITUCION_ALTA", TABLA_INSTITUCIONES, guardada.getId(), null, "Institución creada");
         return guardada;
     }
 
     @Transactional
     public Institucion actualizarInstitucion(Long id, AdminInstitucionRequest request) {
         Institucion i = institucionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Institución no encontrada con id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(INSTITUCION_NO_ENCONTRADA + id));
         applyInstitucion(i, request);
         Institucion guardada = institucionRepository.save(i);
-        auditService.registrar("ADMIN_INSTITUCION_EDICION", "instituciones", guardada.getId(), null, "Institución actualizada");
+        auditService.registrar("ADMIN_INSTITUCION_EDICION", TABLA_INSTITUCIONES, guardada.getId(), null, "Institución actualizada");
         return guardada;
     }
 
     @Transactional
     public void desactivarInstitucion(Long id) {
         Institucion i = institucionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Institución no encontrada con id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(INSTITUCION_NO_ENCONTRADA + id));
         i.setActiva(false);
         institucionRepository.save(i);
-        auditService.registrar("ADMIN_INSTITUCION_BAJA", "instituciones", id, null, "Institución desactivada");
+        auditService.registrar("ADMIN_INSTITUCION_BAJA", TABLA_INSTITUCIONES, id, null, "Institución desactivada");
     }
 
     public List<Especialidad> listarEspecialidades() { return especialidadRepository.findAll(); }
@@ -196,7 +207,7 @@ public class AdminService {
     @Transactional
     public Especialidad actualizarEspecialidad(Long id, AdminEspecialidadRequest request) {
         Especialidad e = especialidadRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Especialidad no encontrada con id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(ESPECIALIDAD_NO_ENCONTRADA + id));
         e.setNombre(request.getNombre().trim());
         e.setActiva(valueOrDefault(request.getActiva(), true));
         return especialidadRepository.save(e);
@@ -205,7 +216,7 @@ public class AdminService {
     @Transactional
     public void desactivarEspecialidad(Long id) {
         Especialidad e = especialidadRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Especialidad no encontrada con id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(ESPECIALIDAD_NO_ENCONTRADA + id));
         e.setActiva(false);
         especialidadRepository.save(e);
     }
@@ -224,7 +235,7 @@ public class AdminService {
     @Transactional
     public ObraSocial actualizarObraSocial(Long id, AdminObraSocialRequest request) {
         ObraSocial o = obraSocialRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Obra social no encontrada con id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(OBRA_SOCIAL_NO_ENCONTRADA + id));
         o.setNombre(request.getNombre().trim());
         o.setCodigo(blankToNull(request.getCodigo()));
         o.setActiva(valueOrDefault(request.getActiva(), true));
@@ -234,7 +245,7 @@ public class AdminService {
     @Transactional
     public void desactivarObraSocial(Long id) {
         ObraSocial o = obraSocialRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Obra social no encontrada con id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(OBRA_SOCIAL_NO_ENCONTRADA + id));
         o.setActiva(false);
         obraSocialRepository.save(o);
     }
@@ -264,14 +275,14 @@ public class AdminService {
         profesional.setSedes(resolveInstitucionesAsSedes(profesional, request.getInstitucionIds()));
 
         Profesional guardado = profesionalRepository.save(profesional);
-        auditService.registrar("ADMIN_PROFESIONAL_ALTA", "profesionales", guardado.getId(), null, "Profesional creado");
+        auditService.registrar("ADMIN_PROFESIONAL_ALTA", TABLA_PROFESIONALES, guardado.getId(), null, "Profesional creado");
         return toProfesionalResponse(guardado);
     }
 
     @Transactional
     public AdminProfesionalResponse actualizarProfesional(Long id, AdminProfesionalUpdateRequest request) {
         Profesional profesional = profesionalRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Profesional no encontrado con id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(PROFESIONAL_NO_ENCONTRADO + id));
         Usuario usuario = profesional.getUsuario();
 
         if (request.getEmail() != null && !request.getEmail().isBlank()) {
@@ -308,18 +319,18 @@ public class AdminService {
             profesional.getSedes().addAll(resolveInstitucionesAsSedes(profesional, request.getInstitucionIds()));
         }
         Profesional guardado = profesionalRepository.save(profesional);
-        auditService.registrar("ADMIN_PROFESIONAL_EDICION", "profesionales", guardado.getId(), null, "Profesional actualizado");
+        auditService.registrar("ADMIN_PROFESIONAL_EDICION", TABLA_PROFESIONALES, guardado.getId(), null, "Profesional actualizado");
         return toProfesionalResponse(guardado);
     }
 
     @Transactional
     public void desactivarProfesional(Long id) {
         Profesional p = profesionalRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Profesional no encontrado con id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(PROFESIONAL_NO_ENCONTRADO + id));
         p.setActivo(false);
         p.getUsuario().setActivo(false);
         profesionalRepository.save(p);
-        auditService.registrar("ADMIN_PROFESIONAL_BAJA", "profesionales", id, null, "Profesional desactivado");
+        auditService.registrar("ADMIN_PROFESIONAL_BAJA", TABLA_PROFESIONALES, id, null, "Profesional desactivado");
     }
 
     public List<AdminSecretariaResponse> listarSecretarias() {
@@ -350,7 +361,7 @@ public class AdminService {
         secretaria.setActiva(valueOrDefault(request.getActiva(), true));
 
         Secretaria guardada = secretariaRepository.save(secretaria);
-        auditService.registrar("ADMIN_SECRETARIA_ALTA", "secretarias", guardada.getId(), null, "Secretaría creada");
+        auditService.registrar("ADMIN_SECRETARIA_ALTA", TABLA_SECRETARIAS, guardada.getId(), null, "Secretaría creada");
         return toSecretariaResponse(guardada);
     }
 
@@ -381,7 +392,7 @@ public class AdminService {
         if (request.getTelefono() != null) secretaria.setTelefono(blankToNull(request.getTelefono()));
         if (request.getInstitucionId() != null) secretaria.setInstitucion(resolveInstitucion(request.getInstitucionId()));
         Secretaria guardada = secretariaRepository.save(secretaria);
-        auditService.registrar("ADMIN_SECRETARIA_EDICION", "secretarias", guardada.getId(), null, "Secretaría actualizada");
+        auditService.registrar("ADMIN_SECRETARIA_EDICION", TABLA_SECRETARIAS, guardada.getId(), null, "Secretaría actualizada");
         return toSecretariaResponse(guardada);
     }
 
@@ -392,7 +403,7 @@ public class AdminService {
         s.setActiva(false);
         s.getUsuario().setActivo(false);
         secretariaRepository.save(s);
-        auditService.registrar("ADMIN_SECRETARIA_BAJA", "secretarias", id, null, "Secretaría desactivada");
+        auditService.registrar("ADMIN_SECRETARIA_BAJA", TABLA_SECRETARIAS, id, null, "Secretaría desactivada");
     }
 
     public List<AdminPacienteResponse> listarPacientes() {
@@ -416,9 +427,9 @@ public class AdminService {
 
         Paciente paciente = new Paciente();
         paciente.setUsuario(usuario);
-        applyPacienteBase(paciente, request.getNombre(), request.getApellido(), request.getDni(), request.getFechaNacimiento(), request.getTelefono(), request.getTipoSangre(), obraSocial, request.getNumeroCarnet(), request.getNumeroHistoriaClinica(), request.getInstitucionCabeceraId(), request.getMedicoCabeceraProfesionalId(), valueOrDefault(request.getActivo(), true));
+        applyPacienteBase(paciente, request, obraSocial, valueOrDefault(request.getActivo(), true));
         Paciente guardado = pacienteRepository.save(paciente);
-        auditService.registrar("ADMIN_PACIENTE_ALTA", "pacientes", guardado.getId(), null, "Paciente creado");
+        auditService.registrar("ADMIN_PACIENTE_ALTA", TABLA_PACIENTES, guardado.getId(), null, "Paciente creado");
         return toPacienteResponse(guardado);
     }
 
@@ -470,20 +481,11 @@ public class AdminService {
             paciente.setNumeroHistoriaClinica(request.getNumeroHistoriaClinica().trim());
         }
         
-        if (request.getInstitucionCabeceraId() != null && request.getInstitucionCabeceraId() > 0) {
-            paciente.setInstitucionCabecera(resolveInstitucion(request.getInstitucionCabeceraId()));
-        } else if (request.getInstitucionCabeceraId() != null && request.getInstitucionCabeceraId() <= 0) {
-            paciente.setInstitucionCabecera(null);
-        }
-
-        if (request.getMedicoCabeceraProfesionalId() != null && request.getMedicoCabeceraProfesionalId() > 0) {
-            paciente.setMedicoCabecera(resolveProfesional(request.getMedicoCabeceraProfesionalId()));
-        } else if (request.getMedicoCabeceraProfesionalId() != null && request.getMedicoCabeceraProfesionalId() <= 0) {
-            paciente.setMedicoCabecera(null);
-        }
+        aplicarInstitucionCabecera(paciente, request.getInstitucionCabeceraId());
+        aplicarMedicoCabecera(paciente, request.getMedicoCabeceraProfesionalId());
 
         Paciente guardado = pacienteRepository.save(paciente);
-        auditService.registrar("ADMIN_PACIENTE_EDICION", "pacientes", guardado.getId(), null, "Paciente actualizado");
+        auditService.registrar("ADMIN_PACIENTE_EDICION", TABLA_PACIENTES, guardado.getId(), null, "Paciente actualizado");
         return toPacienteResponse(guardado);
     }
 
@@ -494,7 +496,7 @@ public class AdminService {
         p.setActivo(false);
         p.getUsuario().setActivo(false);
         pacienteRepository.save(p);
-        auditService.registrar("ADMIN_PACIENTE_BAJA", "pacientes", id, null, "Paciente desactivado");
+        auditService.registrar("ADMIN_PACIENTE_BAJA", TABLA_PACIENTES, id, null, "Paciente desactivado");
     }
 
     private void applyInstitucion(Institucion i, AdminInstitucionRequest request) {
@@ -515,27 +517,38 @@ public class AdminService {
         profesional.setActivo(activo);
     }
 
-    private void applyPacienteBase(Paciente paciente, String nombre, String apellido, String dni, java.time.LocalDate fechaNacimiento,
-                                   String telefono, TipoSangre tipoSangre, ObraSocial obraSocial, String numeroCarnet,
-                                   String numeroHistoriaClinica, Long institucionCabeceraId, Long medicoCabeceraProfesionalId,
-                                   boolean activo) {
-        paciente.setNombre(nombre.trim());
-        paciente.setApellido(apellido.trim());
-        paciente.setDni(dni.trim());
-        paciente.setFechaNacimiento(fechaNacimiento);
-        paciente.setTelefono(telefono.trim());
-        paciente.setTipoSangre(tipoSangre);
+    private void applyPacienteBase(Paciente paciente, AdminPacienteRequest request, ObraSocial obraSocial, boolean activo) {
+        paciente.setNombre(request.getNombre().trim());
+        paciente.setApellido(request.getApellido().trim());
+        paciente.setDni(request.getDni().trim());
+        paciente.setFechaNacimiento(request.getFechaNacimiento());
+        paciente.setTelefono(request.getTelefono().trim());
+        paciente.setTipoSangre(request.getTipoSangre());
         paciente.setObraSocial(obraSocial);
-        paciente.setNumeroCarnet(blankToNull(numeroCarnet));
-        paciente.setNumeroHistoriaClinica(numeroHistoriaClinica.trim());
-        paciente.setInstitucionCabecera(institucionCabeceraId != null ? resolveInstitucion(institucionCabeceraId) : null);
-        paciente.setMedicoCabecera(medicoCabeceraProfesionalId != null ? resolveProfesional(medicoCabeceraProfesionalId) : null);
+        paciente.setNumeroCarnet(blankToNull(request.getNumeroCarnet()));
+        paciente.setNumeroHistoriaClinica(request.getNumeroHistoriaClinica().trim());
+        aplicarInstitucionCabecera(paciente, request.getInstitucionCabeceraId());
+        aplicarMedicoCabecera(paciente, request.getMedicoCabeceraProfesionalId());
         paciente.setActivo(activo);
+    }
+
+    private void aplicarInstitucionCabecera(Paciente paciente, Long institucionCabeceraId) {
+        if (institucionCabeceraId == null) {
+            return;
+        }
+        paciente.setInstitucionCabecera(institucionCabeceraId > 0 ? resolveInstitucion(institucionCabeceraId) : null);
+    }
+
+    private void aplicarMedicoCabecera(Paciente paciente, Long medicoCabeceraProfesionalId) {
+        if (medicoCabeceraProfesionalId == null) {
+            return;
+        }
+        paciente.setMedicoCabecera(medicoCabeceraProfesionalId > 0 ? resolveProfesional(medicoCabeceraProfesionalId) : null);
     }
 
     private Set<Especialidad> resolveEspecialidades(List<Long> ids) {
         return ids.stream().map(id -> especialidadRepository.findById(id)
-                        .orElseThrow(() -> new ResourceNotFoundException("Especialidad no encontrada con id: " + id)))
+                        .orElseThrow(() -> new ResourceNotFoundException(ESPECIALIDAD_NO_ENCONTRADA + id)))
                 .collect(Collectors.toCollection(java.util.LinkedHashSet::new));
     }
 
@@ -552,31 +565,52 @@ public class AdminService {
 
     private Institucion resolveInstitucion(Long id) {
         return institucionRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Institución no encontrada con id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(INSTITUCION_NO_ENCONTRADA + id));
     }
 
     private ObraSocial resolveObraSocial(Long id) {
         return obraSocialRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Obra social no encontrada con id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(OBRA_SOCIAL_NO_ENCONTRADA + id));
     }
 
     private Profesional resolveProfesional(Long id) {
         return profesionalRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Profesional no encontrado con id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException(PROFESIONAL_NO_ENCONTRADO + id));
     }
 
     private AdminUsuarioResponse toUsuarioResponse(Usuario usuario) {
         Long pacienteId = usuario.getPaciente() != null ? usuario.getPaciente().getId() : null;
         Long profesionalId = usuario.getProfesional() != null ? usuario.getProfesional().getId() : null;
         Long secretariaId = usuario.getSecretaria() != null ? usuario.getSecretaria().getId() : null;
-        String nombreMostrar = usuario.getPaciente() != null ? usuario.getPaciente().getApellido() + ", " + usuario.getPaciente().getNombre()
-                : usuario.getProfesional() != null ? usuario.getProfesional().getApellido() + ", " + usuario.getProfesional().getNombre()
-                : usuario.getSecretaria() != null ? usuario.getSecretaria().getApellido() + ", " + usuario.getSecretaria().getNombre()
-                : usuario.getEmail();
-        String dni = usuario.getPaciente() != null ? usuario.getPaciente().getDni()
-                : usuario.getProfesional() != null ? usuario.getProfesional().getDni()
-                : usuario.getSecretaria() != null ? usuario.getSecretaria().getDni() : null;
+        String nombreMostrar = nombreMostrar(usuario);
+        String dni = dniUsuario(usuario);
         return new AdminUsuarioResponse(usuario.getId(), usuario.getEmail(), usuario.getRol(), usuario.getActivo(), usuario.getEmailVerificado(), pacienteId, profesionalId, secretariaId, nombreMostrar, dni);
+    }
+
+    private String nombreMostrar(Usuario usuario) {
+        if (usuario.getPaciente() != null) {
+            return usuario.getPaciente().getApellido() + ", " + usuario.getPaciente().getNombre();
+        }
+        if (usuario.getProfesional() != null) {
+            return usuario.getProfesional().getApellido() + ", " + usuario.getProfesional().getNombre();
+        }
+        if (usuario.getSecretaria() != null) {
+            return usuario.getSecretaria().getApellido() + ", " + usuario.getSecretaria().getNombre();
+        }
+        return usuario.getEmail();
+    }
+
+    private String dniUsuario(Usuario usuario) {
+        if (usuario.getPaciente() != null) {
+            return usuario.getPaciente().getDni();
+        }
+        if (usuario.getProfesional() != null) {
+            return usuario.getProfesional().getDni();
+        }
+        if (usuario.getSecretaria() != null) {
+            return usuario.getSecretaria().getDni();
+        }
+        return null;
     }
 
     private AdminProfesionalResponse toProfesionalResponse(Profesional p) {

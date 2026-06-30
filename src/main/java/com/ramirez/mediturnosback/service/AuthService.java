@@ -14,13 +14,17 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ThreadLocalRandom;
 
 @Service
 public class AuthService {
+    private static final SecureRandom SECURE_RANDOM = new SecureRandom();
+    private static final String LOGIN_ERROR = "LOGIN_ERROR";
+    private static final String TABLA_USUARIOS = "usuarios";
+    private static final String TOKEN_TYPE_BEARER = "Bearer";
 
     private final UsuarioRepository usuarioRepository;
     private final PacienteRepository pacienteRepository;
@@ -109,39 +113,33 @@ public class AuthService {
     public AuthLoginResponse login(AuthLoginRequest request) {
         String identificador = request.resolverIdentificador();
         if (identificador == null || identificador.isBlank()) {
-            auditService.registrarSistema("LOGIN_ERROR", "usuarios", null, "Intento de login sin identificador");
+            auditService.registrarSistema(LOGIN_ERROR, TABLA_USUARIOS, null, "Intento de login sin identificador");
             throw new IllegalArgumentException("Ingresá email o DNI");
         }
 
         Usuario usuario = usuarioRepository.findByEmailOrPacienteDni(identificador)
                 .orElseThrow(() -> {
-                    auditService.registrarSistema("LOGIN_ERROR", "usuarios", null, "Credenciales inválidas para " + identificador);
+                    auditService.registrarSistema(LOGIN_ERROR, TABLA_USUARIOS, null, "Credenciales inválidas para " + identificador);
                     return new IllegalArgumentException("Credenciales inválidas");
                 });
 
         if (!passwordEncoder.matches(request.getPassword(), usuario.getPasswordHash())) {
-            auditService.registrarSistema("LOGIN_ERROR", "usuarios", usuario.getId(), "Password inválido para " + usuario.getEmail());
+            auditService.registrarSistema(LOGIN_ERROR, TABLA_USUARIOS, usuario.getId(), "Password inválido para " + usuario.getEmail());
             throw new IllegalArgumentException("Credenciales inválidas");
         }
         if (Boolean.FALSE.equals(usuario.getEmailVerificado())) {
-            auditService.registrarSistema("LOGIN_ERROR", "usuarios", usuario.getId(), "Cuenta sin verificar: " + usuario.getEmail());
+            auditService.registrarSistema(LOGIN_ERROR, TABLA_USUARIOS, usuario.getId(), "Cuenta sin verificar: " + usuario.getEmail());
             throw new IllegalArgumentException("Debés verificar tu correo antes de ingresar. Revisá el código que te enviamos al registrarte.");
         }
         if (Boolean.FALSE.equals(usuario.getActivo())) {
-            auditService.registrarSistema("LOGIN_ERROR", "usuarios", usuario.getId(), "Cuenta inactiva: " + usuario.getEmail());
+            auditService.registrarSistema(LOGIN_ERROR, TABLA_USUARIOS, usuario.getId(), "Cuenta inactiva: " + usuario.getEmail());
             throw new IllegalArgumentException("Tu cuenta está inactiva");
         }
 
         Long pacienteId = usuario.getPaciente() != null ? usuario.getPaciente().getId() : null;
         Long profesionalId = usuario.getProfesional() != null ? usuario.getProfesional().getId() : null;
         Long profesionalInstitucionId = resolverProfesionalInstitucionId(usuario);
-        String nombreCompleto = usuario.getPaciente() != null
-                ? usuario.getPaciente().getNombre() + " " + usuario.getPaciente().getApellido()
-                : usuario.getProfesional() != null
-                ? usuario.getProfesional().getNombre() + " " + usuario.getProfesional().getApellido()
-                : usuario.getSecretaria() != null
-                ? usuario.getSecretaria().getNombre() + " " + usuario.getSecretaria().getApellido()
-                : usuario.getEmail();
+        String nombreCompleto = nombreCompleto(usuario);
 
         if (debeUsarSegundoFactor(usuario)) {
             String codigo = generarCodigoSeisDigitos();
@@ -156,12 +154,12 @@ public class AuthService {
                     usuario.getId(), pacienteId, profesionalId, profesionalInstitucionId, usuario.getRol(), usuario.getEmail(), nombreCompleto,
                     Boolean.TRUE.equals(usuario.getEmailVerificado()),
                     "Te enviamos un código de verificación a tu correo.",
-                    null, null, null, "Bearer", true, ocultarEmail(usuario.getEmail())
+                    null, null, null, TOKEN_TYPE_BEARER, true, ocultarEmail(usuario.getEmail())
             );
         }
 
         String token = jwtService.generarToken(usuario);
-        auditService.registrarSistema("LOGIN_OK", "usuarios", usuario.getId(), "Inicio de sesión correcto: " + usuario.getEmail());
+        auditService.registrarSistema("LOGIN_OK", TABLA_USUARIOS, usuario.getId(), "Inicio de sesión correcto: " + usuario.getEmail());
 
         return new AuthLoginResponse(
                 usuario.getId(),
@@ -176,7 +174,7 @@ public class AuthService {
                 token,
                 token,
                 token,
-                "Bearer",
+                TOKEN_TYPE_BEARER,
                 false,
                 null
         );
@@ -205,16 +203,10 @@ public class AuthService {
         Long pacienteId = usuario.getPaciente() != null ? usuario.getPaciente().getId() : null;
         Long profesionalId = usuario.getProfesional() != null ? usuario.getProfesional().getId() : null;
         Long profesionalInstitucionId = resolverProfesionalInstitucionId(usuario);
-        String nombreCompleto = usuario.getPaciente() != null
-                ? usuario.getPaciente().getNombre() + " " + usuario.getPaciente().getApellido()
-                : usuario.getProfesional() != null
-                ? usuario.getProfesional().getNombre() + " " + usuario.getProfesional().getApellido()
-                : usuario.getSecretaria() != null
-                ? usuario.getSecretaria().getNombre() + " " + usuario.getSecretaria().getApellido()
-                : usuario.getEmail();
+        String nombreCompleto = nombreCompleto(usuario);
         String token = jwtService.generarToken(usuario);
         return new AuthLoginResponse(usuario.getId(), pacienteId, profesionalId, profesionalInstitucionId, usuario.getRol(), usuario.getEmail(), nombreCompleto,
-                Boolean.TRUE.equals(usuario.getEmailVerificado()), "Inicio de sesión correcto", token, token, token, "Bearer", false, null);
+                Boolean.TRUE.equals(usuario.getEmailVerificado()), "Inicio de sesión correcto", token, token, token, TOKEN_TYPE_BEARER, false, null);
     }
 
     private Long resolverProfesionalInstitucionId(Usuario usuario) {
@@ -282,7 +274,7 @@ public class AuthService {
         usuario.setTokenVerificacion(null);
         usuario.setTokenVerificacionExpiraEn(null);
         usuarioRepository.save(usuario);
-        auditService.registrarSistema("CUENTA_VERIFICADA", "usuarios", usuario.getId(), "Cuenta verificada por código: " + usuario.getEmail());
+        auditService.registrarSistema("CUENTA_VERIFICADA", TABLA_USUARIOS, usuario.getId(), "Cuenta verificada por código: " + usuario.getEmail());
         return "✅ Cuenta verificada correctamente. Ya podés iniciar sesión.";
     }
 
@@ -322,7 +314,7 @@ public class AuthService {
 
         var usuarioOpt = usuarioRepository.findByEmailOrPacienteDni(identificador);
         if (usuarioOpt.isEmpty()) {
-            auditService.registrarSistema("PASSWORD_RECOVERY_REQUEST", "usuarios", null, "Solicitud de recuperación para identificador no encontrado: " + identificador);
+            auditService.registrarSistema("PASSWORD_RECOVERY_REQUEST", TABLA_USUARIOS, null, "Solicitud de recuperación para identificador no encontrado: " + identificador);
             return new PasswordRecoveryResponse(
                     "Solicitud enviada. Si los datos son correctos, te enviamos un código para restablecer tu clave.",
                     null,
@@ -339,7 +331,7 @@ public class AuthService {
         if (!emailEnviado) {
             throw new IllegalStateException("No se pudo enviar el correo de recuperación. Revisá la configuración de Brevo.");
         }
-        auditService.registrarSistema("PASSWORD_RECOVERY_REQUEST", "usuarios", usuario.getId(), "Código de recuperación enviado a " + usuario.getEmail());
+        auditService.registrarSistema("PASSWORD_RECOVERY_REQUEST", TABLA_USUARIOS, usuario.getId(), "Código de recuperación enviado a " + usuario.getEmail());
         return new PasswordRecoveryResponse(
                 "Solicitud enviada. Si los datos son correctos, te enviamos un código para restablecer tu clave.",
                 exposeResetToken ? usuario.getTokenRecuperacion() : null,
@@ -369,12 +361,25 @@ public class AuthService {
         usuario.setActivo(true);
         usuario.setEmailVerificado(true);
         usuarioRepository.save(usuario);
-        auditService.registrarSistema("PASSWORD_RESET_OK", "usuarios", usuario.getId(), "Contraseña restablecida para " + usuario.getEmail());
+        auditService.registrarSistema("PASSWORD_RESET_OK", TABLA_USUARIOS, usuario.getId(), "Contraseña restablecida para " + usuario.getEmail());
         return "Contraseña actualizada correctamente";
     }
 
     private String generarCodigoSeisDigitos() {
-        return String.format("%06d", ThreadLocalRandom.current().nextInt(0, 1_000_000));
+        return String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
+    }
+
+    private String nombreCompleto(Usuario usuario) {
+        if (usuario.getPaciente() != null) {
+            return usuario.getPaciente().getNombre() + " " + usuario.getPaciente().getApellido();
+        }
+        if (usuario.getProfesional() != null) {
+            return usuario.getProfesional().getNombre() + " " + usuario.getProfesional().getApellido();
+        }
+        if (usuario.getSecretaria() != null) {
+            return usuario.getSecretaria().getNombre() + " " + usuario.getSecretaria().getApellido();
+        }
+        return usuario.getEmail();
     }
 
     private void validarPasswords(String password, String confirmPassword) {

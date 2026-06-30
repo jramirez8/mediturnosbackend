@@ -29,6 +29,7 @@ import java.util.UUID;
 
 @Service
 public class MediaFileService {
+    private static final String MIME_IMAGE_JPEG = "image/jpeg";
 
     @Value("${app.upload.dir:/data/uploads}")
     private String uploadDir;
@@ -83,7 +84,7 @@ public class MediaFileService {
             String relativePath = root().relativize(target).toString().replace('\\', '/');
             return new StoredImage(
                     originalName,
-                    "image/jpeg",
+                    MIME_IMAGE_JPEG,
                     relativePath,
                     file.getSize(),
                     (long) compressed.length
@@ -217,7 +218,7 @@ public class MediaFileService {
     private String extensionFromContentType(String contentType, String originalFilename) {
         String filename = originalFilename == null ? "" : originalFilename.toLowerCase(Locale.ROOT);
         if ("application/pdf".equals(contentType) || filename.endsWith(".pdf")) return ".pdf";
-        if ("image/jpeg".equals(contentType) || "image/jpg".equals(contentType) || filename.endsWith(".jpg") || filename.endsWith(".jpeg")) return ".jpg";
+        if (MIME_IMAGE_JPEG.equals(contentType) || "image/jpg".equals(contentType) || filename.endsWith(".jpg") || filename.endsWith(".jpeg")) return ".jpg";
         if ("image/png".equals(contentType) || filename.endsWith(".png")) return ".png";
         return null;
     }
@@ -225,7 +226,7 @@ public class MediaFileService {
     private String normalizeDocumentMimeType(String contentType, String extension) {
         if (".pdf".equals(extension)) return "application/pdf";
         if (".png".equals(extension)) return "image/png";
-        return "image/jpeg";
+        return MIME_IMAGE_JPEG;
     }
 
     private Path root() {
@@ -253,7 +254,7 @@ public class MediaFileService {
                 .toLowerCase(Locale.ROOT)
                 .replaceAll("[^a-z0-9-_]", "-")
                 .replaceAll("-+", "-")
-                .replaceAll("^-|-$", "");
+                .replaceAll("(^-)|(-$)", "");
         return normalized.isBlank() ? "archivo" : normalized.substring(0, Math.min(normalized.length(), 60));
     }
 

@@ -17,6 +17,9 @@ import java.util.Set;
 @Service
 public class AgendaService {
     private static final Set<Integer> DURACIONES_VALIDAS = Set.of(10, 15, 20, 30, 45, 60, 90, 120);
+    private static final String TABLA_HORARIOS_ATENCION = "horarios_atencion";
+    private static final String TABLA_AGENDA_BLOQUEOS = "agenda_bloqueos";
+    private static final int DURACION_TURNO_DEFAULT = 30;
 
     private final HorarioAtencionRepository horarioAtencionRepository;
     private final AgendaBloqueoRepository agendaBloqueoRepository;
@@ -54,7 +57,7 @@ public class AgendaService {
         HorarioAtencion h = new HorarioAtencion();
         aplicarHorario(h, pi, especialidad, request);
         HorarioAtencion guardado = horarioAtencionRepository.save(h);
-        auditService.registrar("AGENDA_HORARIO_ALTA", "horarios_atencion", guardado.getId(), null, "Horario configurado");
+        auditService.registrar("AGENDA_HORARIO_ALTA", TABLA_HORARIOS_ATENCION, guardado.getId(), null, "Horario configurado");
         return mapHorario(guardado);
     }
 
@@ -71,7 +74,7 @@ public class AgendaService {
 
         aplicarHorario(h, pi, especialidad, request);
         HorarioAtencion guardado = horarioAtencionRepository.save(h);
-        auditService.registrar("AGENDA_HORARIO_EDICION", "horarios_atencion", guardado.getId(), null, "Horario actualizado");
+        auditService.registrar("AGENDA_HORARIO_EDICION", TABLA_HORARIOS_ATENCION, guardado.getId(), null, "Horario actualizado");
         return mapHorario(guardado);
     }
 
@@ -81,7 +84,7 @@ public class AgendaService {
         obtenerPiConAcceso(h.getProfesionalInstitucion().getId());
         h.setActivo(false);
         horarioAtencionRepository.save(h);
-        auditService.registrar("AGENDA_HORARIO_BAJA", "horarios_atencion", id, null, "Horario desactivado");
+        auditService.registrar("AGENDA_HORARIO_BAJA", TABLA_HORARIOS_ATENCION, id, null, "Horario desactivado");
     }
 
     @Transactional(readOnly = true)
@@ -100,7 +103,7 @@ public class AgendaService {
         b.setFechaHasta(request.getFechaHasta());
         b.setMotivo(normalizar(request.getMotivo()));
         AgendaBloqueo guardado = agendaBloqueoRepository.save(b);
-        auditService.registrar("AGENDA_BLOQUEO_ALTA", "agenda_bloqueos", guardado.getId(), null, "Bloqueo de agenda creado");
+        auditService.registrar("AGENDA_BLOQUEO_ALTA", TABLA_AGENDA_BLOQUEOS, guardado.getId(), null, "Bloqueo de agenda creado");
         return mapBloqueo(guardado);
     }
 
@@ -116,7 +119,7 @@ public class AgendaService {
         b.setProfesionalInstitucion(pi);
         if (request.getMotivo() != null) b.setMotivo(normalizar(request.getMotivo()));
         AgendaBloqueo guardado = agendaBloqueoRepository.save(b);
-        auditService.registrar("AGENDA_BLOQUEO_EDICION", "agenda_bloqueos", guardado.getId(), null, "Bloqueo de agenda actualizado");
+        auditService.registrar("AGENDA_BLOQUEO_EDICION", TABLA_AGENDA_BLOQUEOS, guardado.getId(), null, "Bloqueo de agenda actualizado");
         return mapBloqueo(guardado);
     }
 
@@ -125,7 +128,7 @@ public class AgendaService {
         AgendaBloqueo b = agendaBloqueoRepository.findById(id).orElseThrow(() -> new ResourceNotFoundException("Bloqueo no encontrado"));
         obtenerPiConAcceso(b.getProfesionalInstitucion().getId());
         agendaBloqueoRepository.delete(b);
-        auditService.registrar("AGENDA_BLOQUEO_BAJA", "agenda_bloqueos", id, null, "Bloqueo de agenda eliminado");
+        auditService.registrar("AGENDA_BLOQUEO_BAJA", TABLA_AGENDA_BLOQUEOS, id, null, "Bloqueo de agenda eliminado");
     }
 
     private void aplicarHorario(HorarioAtencion h, ProfesionalInstitucion pi, Especialidad especialidad, HorarioAtencionRequest request) {
@@ -134,8 +137,28 @@ public class AgendaService {
         if (request.getDiaSemana() != null) h.setDiaSemana(normalizarDia(request.getDiaSemana()));
         if (request.getHoraDesde() != null) h.setHoraDesde(request.getHoraDesde());
         if (request.getHoraHasta() != null) h.setHoraHasta(request.getHoraHasta());
-        h.setDuracionTurnoMin(request.getDuracionTurnoMin() != null ? request.getDuracionTurnoMin() : (h.getDuracionTurnoMin() != null ? h.getDuracionTurnoMin() : 30));
-        h.setActivo(request.getActivo() != null ? request.getActivo() : (h.getActivo() != null ? h.getActivo() : true));
+        h.setDuracionTurnoMin(resolveDuracionTurno(request, h));
+        h.setActivo(resolveActivo(request, h));
+    }
+
+    private Integer resolveDuracionTurno(HorarioAtencionRequest request, HorarioAtencion horario) {
+        if (request.getDuracionTurnoMin() != null) {
+            return request.getDuracionTurnoMin();
+        }
+        if (horario.getDuracionTurnoMin() != null) {
+            return horario.getDuracionTurnoMin();
+        }
+        return DURACION_TURNO_DEFAULT;
+    }
+
+    private Boolean resolveActivo(HorarioAtencionRequest request, HorarioAtencion horario) {
+        if (request.getActivo() != null) {
+            return request.getActivo();
+        }
+        if (horario.getActivo() != null) {
+            return horario.getActivo();
+        }
+        return true;
     }
 
     private ProfesionalInstitucion obtenerPiConAcceso(Long id) {
@@ -168,7 +191,7 @@ public class AgendaService {
         if (desde == null || hasta == null || !hasta.isAfter(desde)) {
             throw new IllegalArgumentException("El horario necesita hora desde/hasta válida");
         }
-        int minutos = duracion != null ? duracion : 30;
+        int minutos = duracion != null ? duracion : DURACION_TURNO_DEFAULT;
         if (!DURACIONES_VALIDAS.contains(minutos)) {
             throw new IllegalArgumentException("Duración inválida. Usá 10, 15, 20, 30, 45, 60, 90 o 120 minutos");
         }

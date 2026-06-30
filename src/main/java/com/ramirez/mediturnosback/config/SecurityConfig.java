@@ -16,6 +16,8 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 @Configuration
 @EnableMethodSecurity
 public class SecurityConfig {
+    private static final String ROLE_ADMIN = "ADMIN";
+    private static final String ROLE_PROFESSIONAL = "PROFESSIONAL";
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http, JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
@@ -39,12 +41,12 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/profesionales", "/api/profesionales/especialidades").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/instituciones", "/api/instituciones/**", "/api/obras-sociales", "/api/obras-sociales/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/turnos/disponibilidad").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/secretaria/**").hasAnyRole("SECRETARY", "ADMIN")
-                        .requestMatchers("/api/agenda/**").hasAnyRole("PROFESSIONAL", "ADMIN")
-                        .requestMatchers("/api/profesionales/me", "/api/profesionales/me/**", "/api/profesionales/agenda/**", "/api/profesionales/proximo-turno/**").hasAnyRole("PROFESSIONAL", "ADMIN")
-                        .requestMatchers("/api/profesionales/historial-paciente").hasAnyRole("PROFESSIONAL", "ADMIN")
-                        .requestMatchers("/api/lista-espera/pendientes").hasAnyRole("SECRETARY", "ADMIN")
+                        .requestMatchers("/api/admin/**").hasRole(ROLE_ADMIN)
+                        .requestMatchers("/api/secretaria/**").hasAnyRole("SECRETARY", ROLE_ADMIN)
+                        .requestMatchers("/api/agenda/**").hasAnyRole(ROLE_PROFESSIONAL, ROLE_ADMIN)
+                        .requestMatchers("/api/profesionales/me", "/api/profesionales/me/**", "/api/profesionales/agenda/**", "/api/profesionales/proximo-turno/**").hasAnyRole(ROLE_PROFESSIONAL, ROLE_ADMIN)
+                        .requestMatchers("/api/profesionales/historial-paciente").hasAnyRole(ROLE_PROFESSIONAL, ROLE_ADMIN)
+                        .requestMatchers("/api/lista-espera/pendientes").hasAnyRole("SECRETARY", ROLE_ADMIN)
                         .requestMatchers("/api/lista-espera/**").authenticated()
                         .requestMatchers("/api/pacientes/**").authenticated()
                         .requestMatchers("/api/turnos/**").authenticated()

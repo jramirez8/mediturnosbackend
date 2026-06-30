@@ -62,6 +62,13 @@ class JwtServiceTest {
                 .hasMessageContaining("vacío");
     }
 
+    @Test
+    void rechazaBearerSinToken() {
+        assertThatThrownBy(() -> service.parsearClaimsDesdeAuthorization("Bearer"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Token JWT");
+    }
+
     private Usuario usuario(Long id) {
         Usuario usuario = new Usuario();
         usuario.setId(id);

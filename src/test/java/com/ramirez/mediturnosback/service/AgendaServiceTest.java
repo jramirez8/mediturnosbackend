@@ -94,6 +94,18 @@ class AgendaServiceTest {
     }
 
     @Test
+    void creaHorarioConDuracionYActivoPorDefecto() {
+        HorarioAtencionRequest request = requestBase();
+        request.setDuracionTurnoMin(null);
+        request.setActivo(null);
+
+        var response = service.crearHorario(request);
+
+        assertThat(response.getDuracionTurnoMin()).isEqualTo(30);
+        assertThat(response.getActivo()).isTrue();
+    }
+
+    @Test
     void aceptaSabadoComoExcepcionConfigurable() {
         HorarioAtencionRequest request = requestBase();
         request.setDiaSemana("satURDAY");
@@ -247,6 +259,27 @@ class AgendaServiceTest {
         assertThat(response.getHoraDesde()).isEqualTo(LocalTime.of(10, 0));
         assertThat(response.getDuracionTurnoMin()).isEqualTo(45);
         verify(auditService).registrar(eq("AGENDA_HORARIO_EDICION"), anyString(), eq(5L), isNull(), anyString());
+    }
+
+    @Test
+    void actualizaHorarioPreservandoDuracionYActivoExistentes() {
+        HorarioAtencion existente = new HorarioAtencion();
+        existente.setId(5L);
+        existente.setProfesionalInstitucion(pi);
+        existente.setEspecialidad(especialidad);
+        existente.setDiaSemana("LUNES");
+        existente.setHoraDesde(LocalTime.of(9, 0));
+        existente.setHoraHasta(LocalTime.of(13, 0));
+        existente.setDuracionTurnoMin(45);
+        existente.setActivo(false);
+        when(horarioRepository.findById(5L)).thenReturn(Optional.of(existente));
+
+        HorarioAtencionRequest request = new HorarioAtencionRequest();
+
+        var response = service.actualizarHorario(5L, request);
+
+        assertThat(response.getDuracionTurnoMin()).isEqualTo(45);
+        assertThat(response.getActivo()).isFalse();
     }
 
     @Test

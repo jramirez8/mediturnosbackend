@@ -62,8 +62,8 @@ class DocumentoServiceTest {
         var result = service.listarPropios();
 
         assertThat(result).hasSize(1);
-        assertThat(result.get(0).getPacienteId()).isEqualTo(3L);
-        assertThat(result.get(0).getUrl()).isEqualTo("/api/documentos/11/archivo");
+        assertThat(result.get(0).pacienteId()).isEqualTo(3L);
+        assertThat(result.get(0).url()).isEqualTo("/api/documentos/11/archivo");
     }
 
     @Test
@@ -124,7 +124,7 @@ class DocumentoServiceTest {
 
         var result = service.archivar(11L);
 
-        assertThat(result.getArchivado()).isTrue();
+        assertThat(result.archivado()).isTrue();
         assertThat(doc.getArchivadoEn()).isEqualTo(now);
         verify(auditService).registrar(eq("DOCUMENTO_ARCHIVADO"), anyString(), eq(11L), isNull(), anyString());
     }

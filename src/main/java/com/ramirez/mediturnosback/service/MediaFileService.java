@@ -132,7 +132,7 @@ public class MediaFileService {
             Files.copy(inputStream, target);
 
             String relativePath = root().relativize(target).toString().replace('\\', '/');
-            return new StoredFile(originalName, normalizeDocumentMimeType(contentType, extension), relativePath, file.getSize(), Files.size(target));
+            return new StoredFile(originalName, normalizeDocumentMimeType(extension), relativePath, file.getSize(), Files.size(target));
         } catch (IOException e) {
             throw new IllegalStateException("No se pudo guardar el documento");
         }
@@ -223,7 +223,7 @@ public class MediaFileService {
         return null;
     }
 
-    private String normalizeDocumentMimeType(String contentType, String extension) {
+    private String normalizeDocumentMimeType(String extension) {
         if (".pdf".equals(extension)) return "application/pdf";
         if (".png".equals(extension)) return "image/png";
         return MIME_IMAGE_JPEG;

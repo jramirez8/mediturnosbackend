@@ -14,6 +14,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.access.AccessDeniedException;
 
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.List;
 import java.util.Optional;
 
@@ -119,7 +120,7 @@ class DocumentoServiceTest {
         when(documentoRepository.findById(11L)).thenReturn(Optional.of(doc));
         when(currentUserService.requireAnyRole(RolUsuario.ADMIN, RolUsuario.SECRETARY, RolUsuario.PROFESSIONAL))
                 .thenReturn(new AuthenticatedUser(2L, null, null, RolUsuario.SECRETARY, "secretaria@x.com"));
-        LocalDateTime now = LocalDateTime.of(2026, 6, 17, 20, 0);
+        LocalDateTime now = LocalDateTime.of(2026, Month.JUNE, 17, 20, 0);
         when(appClock.now()).thenReturn(now);
         when(documentoRepository.save(doc)).thenReturn(doc);
 
@@ -238,7 +239,7 @@ class DocumentoServiceTest {
         doc.setOriginalSizeBytes(1000L);
         doc.setStoredSizeBytes(900L);
         doc.setArchivado(archivado);
-        doc.setCreadoEn(LocalDateTime.of(2026, 6, 17, 10, 0));
+        doc.setCreadoEn(LocalDateTime.of(2026, Month.JUNE, 17, 10, 0));
         return doc;
     }
 }

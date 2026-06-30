@@ -112,7 +112,7 @@ public class VerificationDispatchService {
                 + "<br/>Dirección: " + turno.getDireccionAtencion()
                 + "<br/>Fecha y hora: " + turno.getFechaHora();
         String html = """
-                <html><body style=\"font-family: Arial, sans-serif;\">
+                <html><body style="font-family: Arial, sans-serif;">
                 <h2>Recordatorio de turno</h2>
                 <p>Tu turno es en aproximadamente 3 horas.</p>
                 <p><strong>%s</strong></p>
@@ -126,7 +126,7 @@ public class VerificationDispatchService {
 
     public boolean enviarAvisoListaEspera(String emailDestino, String nombre, TurnoResponse turnoLiberado) {
         String html = """
-                <html><body style=\"font-family: Arial, sans-serif;\">
+                <html><body style="font-family: Arial, sans-serif;">
                 <h2>Se liberó un turno</h2>
                 <p>Hola %s,</p>
                 <p>Se liberó un horario compatible con tu lista de espera.</p>

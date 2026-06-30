@@ -12,6 +12,7 @@ import org.springframework.security.access.AccessDeniedException;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.Month;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -198,8 +199,8 @@ class AgendaServiceTest {
     void creaBloqueoValidoYRecortaMotivo() {
         AgendaBloqueoRequest request = new AgendaBloqueoRequest();
         request.setProfesionalInstitucionId(10L);
-        request.setFechaDesde(LocalDateTime.of(2026, 7, 1, 9, 0));
-        request.setFechaHasta(LocalDateTime.of(2026, 7, 1, 13, 0));
+        request.setFechaDesde(LocalDateTime.of(2026, Month.JULY, 1, 9, 0));
+        request.setFechaHasta(LocalDateTime.of(2026, Month.JULY, 1, 13, 0));
         request.setMotivo("  Jornada académica  ");
 
         var result = service.crearBloqueo(request);
@@ -212,8 +213,8 @@ class AgendaServiceTest {
     void rechazaBloqueoSinRangoValido() {
         AgendaBloqueoRequest request = new AgendaBloqueoRequest();
         request.setProfesionalInstitucionId(10L);
-        request.setFechaDesde(LocalDateTime.of(2026, 7, 2, 13, 0));
-        request.setFechaHasta(LocalDateTime.of(2026, 7, 2, 9, 0));
+        request.setFechaDesde(LocalDateTime.of(2026, Month.JULY, 2, 13, 0));
+        request.setFechaHasta(LocalDateTime.of(2026, Month.JULY, 2, 9, 0));
 
         assertThatThrownBy(() -> service.crearBloqueo(request))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -271,8 +272,8 @@ class AgendaServiceTest {
         AgendaBloqueo bloqueo = new AgendaBloqueo();
         bloqueo.setId(8L);
         bloqueo.setProfesionalInstitucion(pi);
-        bloqueo.setFechaDesde(LocalDateTime.of(2026, 7, 10, 9, 0));
-        bloqueo.setFechaHasta(LocalDateTime.of(2026, 7, 10, 13, 0));
+        bloqueo.setFechaDesde(LocalDateTime.of(2026, Month.JULY, 10, 9, 0));
+        bloqueo.setFechaHasta(LocalDateTime.of(2026, Month.JULY, 10, 13, 0));
         bloqueo.setMotivo("Capacitación");
         when(bloqueoRepository.findByProfesionalInstitucionIdOrderByFechaDesdeAsc(10L)).thenReturn(List.of(bloqueo));
 
@@ -287,20 +288,20 @@ class AgendaServiceTest {
         AgendaBloqueo bloqueo = new AgendaBloqueo();
         bloqueo.setId(8L);
         bloqueo.setProfesionalInstitucion(pi);
-        bloqueo.setFechaDesde(LocalDateTime.of(2026, 7, 10, 9, 0));
-        bloqueo.setFechaHasta(LocalDateTime.of(2026, 7, 10, 13, 0));
+        bloqueo.setFechaDesde(LocalDateTime.of(2026, Month.JULY, 10, 9, 0));
+        bloqueo.setFechaHasta(LocalDateTime.of(2026, Month.JULY, 10, 13, 0));
         bloqueo.setMotivo("Original");
         when(bloqueoRepository.findById(8L)).thenReturn(Optional.of(bloqueo));
 
         AgendaBloqueoRequest request = new AgendaBloqueoRequest();
-        request.setFechaDesde(LocalDateTime.of(2026, 7, 11, 10, 0));
-        request.setFechaHasta(LocalDateTime.of(2026, 7, 11, 12, 0));
+        request.setFechaDesde(LocalDateTime.of(2026, Month.JULY, 11, 10, 0));
+        request.setFechaHasta(LocalDateTime.of(2026, Month.JULY, 11, 12, 0));
         request.setMotivo("  Reunión  ");
 
         var result = service.actualizarBloqueo(8L, request);
 
         assertThat(result.getMotivo()).isEqualTo("Reunión");
-        assertThat(result.getFechaDesde()).isEqualTo(LocalDateTime.of(2026, 7, 11, 10, 0));
+        assertThat(result.getFechaDesde()).isEqualTo(LocalDateTime.of(2026, Month.JULY, 11, 10, 0));
         verify(auditService).registrar(eq("AGENDA_BLOQUEO_EDICION"), anyString(), eq(8L), isNull(), anyString());
     }
 

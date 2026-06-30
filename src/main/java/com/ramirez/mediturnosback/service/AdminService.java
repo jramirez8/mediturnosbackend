@@ -285,6 +285,15 @@ public class AdminService {
                 .orElseThrow(() -> new ResourceNotFoundException(PROFESIONAL_NO_ENCONTRADO + id));
         Usuario usuario = profesional.getUsuario();
 
+        actualizarUsuarioProfesional(usuario, request);
+        actualizarDatosProfesional(profesional, request);
+
+        Profesional guardado = profesionalRepository.save(profesional);
+        auditService.registrar("ADMIN_PROFESIONAL_EDICION", TABLA_PROFESIONALES, guardado.getId(), null, "Profesional actualizado");
+        return toProfesionalResponse(guardado);
+    }
+
+    private void actualizarUsuarioProfesional(Usuario usuario, AdminProfesionalUpdateRequest request) {
         if (request.getEmail() != null && !request.getEmail().isBlank()) {
             validarEmailUnico(request.getEmail(), usuario.getId());
             usuario.setEmail(normalizeEmail(request.getEmail()));
@@ -295,10 +304,14 @@ public class AdminService {
         }
         if (request.getActivo() != null) {
             usuario.setActivo(request.getActivo());
-            profesional.setActivo(request.getActivo());
         }
         if (request.getEmailVerificado() != null) usuario.setEmailVerificado(request.getEmailVerificado());
+    }
 
+    private void actualizarDatosProfesional(Profesional profesional, AdminProfesionalUpdateRequest request) {
+        if (request.getActivo() != null) {
+            profesional.setActivo(request.getActivo());
+        }
         if (request.getDni() != null && !request.getDni().isBlank()) {
             validarDniUnicoProfesional(request.getDni(), profesional.getId());
             profesional.setDni(request.getDni().trim());
@@ -318,9 +331,6 @@ public class AdminService {
             profesional.getSedes().clear();
             profesional.getSedes().addAll(resolveInstitucionesAsSedes(profesional, request.getInstitucionIds()));
         }
-        Profesional guardado = profesionalRepository.save(profesional);
-        auditService.registrar("ADMIN_PROFESIONAL_EDICION", TABLA_PROFESIONALES, guardado.getId(), null, "Profesional actualizado");
-        return toProfesionalResponse(guardado);
     }
 
     @Transactional
@@ -439,6 +449,15 @@ public class AdminService {
                 .orElseThrow(() -> new ResourceNotFoundException("Paciente no encontrado con id: " + id));
         Usuario usuario = paciente.getUsuario();
 
+        actualizarUsuarioPaciente(usuario, paciente, request);
+        actualizarDatosPaciente(paciente, request);
+
+        Paciente guardado = pacienteRepository.save(paciente);
+        auditService.registrar("ADMIN_PACIENTE_EDICION", TABLA_PACIENTES, guardado.getId(), null, "Paciente actualizado");
+        return toPacienteResponse(guardado);
+    }
+
+    private void actualizarUsuarioPaciente(Usuario usuario, Paciente paciente, AdminPacienteUpdateRequest request) {
         if (request.getEmail() != null && !request.getEmail().isBlank()) {
             validarEmailUnico(request.getEmail(), usuario.getId());
             usuario.setEmail(normalizeEmail(request.getEmail()));
@@ -452,41 +471,30 @@ public class AdminService {
             usuario.setActivo(request.getActivo());
             paciente.setActivo(request.getActivo());
         }
+    }
 
-        // Campos de Paciente
+    private void actualizarDatosPaciente(Paciente paciente, AdminPacienteUpdateRequest request) {
         if (request.getNombre() != null && !request.getNombre().isBlank()) paciente.setNombre(request.getNombre().trim());
         if (request.getApellido() != null && !request.getApellido().isBlank()) paciente.setApellido(request.getApellido().trim());
         if (request.getDni() != null && !request.getDni().isBlank()) {
             validarDniUnicoPaciente(request.getDni(), paciente.getId());
             paciente.setDni(request.getDni().trim());
         }
-        
-        // Manejo seguro de Fecha
         if (request.getFechaNacimiento() != null) {
             paciente.setFechaNacimiento(request.getFechaNacimiento());
         }
-
         if (request.getTelefono() != null) paciente.setTelefono(request.getTelefono().trim());
         if (request.getTipoSangre() != null) paciente.setTipoSangre(request.getTipoSangre());
-        
-        // Manejo seguro de IDs (solo si son > 0)
         if (request.getObraSocialId() != null && request.getObraSocialId() > 0) {
             paciente.setObraSocial(resolveObraSocial(request.getObraSocialId()));
         }
-        
         paciente.setNumeroCarnet(blankToNull(request.getNumeroCarnet()));
-        
         if (request.getNumeroHistoriaClinica() != null && !request.getNumeroHistoriaClinica().isBlank()) {
             validarHistoriaClinicaUnica(request.getNumeroHistoriaClinica(), paciente.getId());
             paciente.setNumeroHistoriaClinica(request.getNumeroHistoriaClinica().trim());
         }
-        
         aplicarInstitucionCabecera(paciente, request.getInstitucionCabeceraId());
         aplicarMedicoCabecera(paciente, request.getMedicoCabeceraProfesionalId());
-
-        Paciente guardado = pacienteRepository.save(paciente);
-        auditService.registrar("ADMIN_PACIENTE_EDICION", TABLA_PACIENTES, guardado.getId(), null, "Paciente actualizado");
-        return toPacienteResponse(guardado);
     }
 
     @Transactional

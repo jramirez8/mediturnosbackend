@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.time.LocalDateTime;
+import java.time.Month;
 import java.util.List;
 import java.util.Optional;
 
@@ -77,7 +78,7 @@ class AuditServiceTest {
         log.setActorRol("ADMIN");
         log.setActorEmail("admin@mediturnos.net.ar");
         log.setDetalle("Paciente creado");
-        log.setCreadoEn(LocalDateTime.of(2026, 6, 17, 12, 0));
+        log.setCreadoEn(LocalDateTime.of(2026, Month.JUNE, 17, 12, 0));
         when(repository.findTop100ByOrderByCreadoEnDesc()).thenReturn(List.of(log));
 
         var result = service.ultimos();

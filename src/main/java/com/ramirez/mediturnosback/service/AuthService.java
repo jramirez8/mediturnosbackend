@@ -36,7 +36,6 @@ public class AuthService {
     private final AuditService auditService;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
-    private final String appBaseUrl;
     private final boolean exposeResetToken;
 
     public AuthService(UsuarioRepository usuarioRepository,
@@ -49,7 +48,6 @@ public class AuthService {
                        AuditService auditService,
                        PasswordEncoder passwordEncoder,
                        JwtService jwtService,
-                       @Value("${app.base-url:http://127.0.0.1:8080}") String appBaseUrl,
                        @Value("${app.auth.expose-reset-token:false}") boolean exposeResetToken) {
         this.usuarioRepository = usuarioRepository;
         this.pacienteRepository = pacienteRepository;
@@ -61,7 +59,6 @@ public class AuthService {
         this.auditService = auditService;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
-        this.appBaseUrl = appBaseUrl;
         this.exposeResetToken = exposeResetToken;
     }
 

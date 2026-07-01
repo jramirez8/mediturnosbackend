@@ -4,6 +4,7 @@ import com.ramirez.mediturnosback.dto.*;
 import com.ramirez.mediturnosback.exception.ResourceNotFoundException;
 import com.ramirez.mediturnosback.model.*;
 import com.ramirez.mediturnosback.repository.*;
+import com.ramirez.mediturnosback.util.AppClock;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -156,7 +157,7 @@ public class AdminService {
         }
         String codigo = String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
         usuario.setTokenVerificacion(codigo);
-        usuario.setTokenVerificacionExpiraEn(LocalDateTime.now().plusMinutes(15));
+        usuario.setTokenVerificacionExpiraEn(LocalDateTime.now(AppClock.APP_ZONE).plusMinutes(15));
         usuarioRepository.save(usuario);
         boolean enviado = verificationDispatchService.enviarCodigoValidacionEmail(usuario, usuario.getPaciente(), codigo);
         if (!enviado) throw new IllegalStateException("No se pudo enviar el correo de verificación. Revisá Brevo.");

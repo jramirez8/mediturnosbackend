@@ -1,5 +1,6 @@
 package com.ramirez.mediturnosback.model;
 
+import com.ramirez.mediturnosback.util.AppClock;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -42,5 +43,5 @@ public class AuditLog {
     private String detalle;
 
     @Column(nullable = false)
-    private LocalDateTime creadoEn = LocalDateTime.now();
+    private LocalDateTime creadoEn = LocalDateTime.now(AppClock.APP_ZONE);
 }

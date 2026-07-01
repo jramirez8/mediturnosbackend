@@ -3,6 +3,7 @@ package com.ramirez.mediturnosback.service;
 import com.ramirez.mediturnosback.dto.TurnoResponse;
 import com.ramirez.mediturnosback.model.Turno;
 import com.ramirez.mediturnosback.repository.TurnoRepository;
+import com.ramirez.mediturnosback.util.AppClock;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -29,8 +30,9 @@ public class TurnoReminderScheduler {
     @Scheduled(fixedDelayString = "${app.turnos.recordatorios.delay-ms:600000}", initialDelayString = "${app.turnos.recordatorios.initial-delay-ms:60000}")
     @Transactional
     public void enviarRecordatoriosTresHoras() {
-        LocalDateTime from = LocalDateTime.now().plusHours(3).minusMinutes(10);
-        LocalDateTime to = LocalDateTime.now().plusHours(3).plusMinutes(10);
+        LocalDateTime now = LocalDateTime.now(AppClock.APP_ZONE);
+        LocalDateTime from = now.plusHours(3).minusMinutes(10);
+        LocalDateTime to = now.plusHours(3).plusMinutes(10);
         var turnos = turnoRepository.findTurnosParaRecordatorioTresHoras(from, to);
         for (Turno turno : turnos) {
             String email = turno.getPaciente() != null && turno.getPaciente().getUsuario() != null ? turno.getPaciente().getUsuario().getEmail() : null;
@@ -38,7 +40,7 @@ public class TurnoReminderScheduler {
             boolean enviado = verificationDispatchService.enviarRecordatorioTresHoras(response, email);
             if (enviado) {
                 turno.setRecordatorioTresHorasEnviado(true);
-                turno.setRecordatorioTresHorasEnviadoEn(LocalDateTime.now());
+                turno.setRecordatorioTresHorasEnviadoEn(now);
                 auditService.registrar("TURNO_RECORDATORIO_3H", "turnos", turno.getId(), "sistema", "Recordatorio 3 horas enviado");
             }
         }

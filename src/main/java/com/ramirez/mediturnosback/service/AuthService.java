@@ -9,6 +9,7 @@ import com.ramirez.mediturnosback.repository.PacienteRepository;
 import com.ramirez.mediturnosback.repository.ProfesionalRepository;
 import com.ramirez.mediturnosback.repository.ProfesionalInstitucionRepository;
 import com.ramirez.mediturnosback.repository.UsuarioRepository;
+import com.ramirez.mediturnosback.util.AppClock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -77,7 +78,7 @@ public class AuthService {
         usuario.setEmailVerificado(false);
         usuario.setActivo(false);
         usuario.setTokenVerificacion(generarCodigoSeisDigitos());
-        usuario.setTokenVerificacionExpiraEn(LocalDateTime.now().plusMinutes(15));
+        usuario.setTokenVerificacionExpiraEn(now().plusMinutes(15));
 
         Paciente paciente = new Paciente();
         paciente.setNombre(request.getNombre().trim());
@@ -141,7 +142,7 @@ public class AuthService {
         if (debeUsarSegundoFactor(usuario)) {
             String codigo = generarCodigoSeisDigitos();
             usuario.setTwoFactorCode(codigo);
-            usuario.setTwoFactorCodeExpiraEn(LocalDateTime.now().plusMinutes(10));
+            usuario.setTwoFactorCodeExpiraEn(now().plusMinutes(10));
             usuarioRepository.save(usuario);
             boolean enviado = verificationDispatchService.enviarCodigoDosFactores(usuario, codigo);
             if (!enviado) {
@@ -186,7 +187,7 @@ public class AuthService {
         if (usuario.getTwoFactorCode() == null || usuario.getTwoFactorCodeExpiraEn() == null) {
             throw new IllegalArgumentException("No hay una verificación de segundo factor pendiente");
         }
-        if (usuario.getTwoFactorCodeExpiraEn().isBefore(LocalDateTime.now())) {
+        if (usuario.getTwoFactorCodeExpiraEn().isBefore(now())) {
             throw new IllegalArgumentException("El código de verificación expiró");
         }
         if (!usuario.getTwoFactorCode().equals(request.getCodigo().trim())) {
@@ -231,7 +232,7 @@ public class AuthService {
     public String verificarEmail(String token) {
         Usuario usuario = usuarioRepository.findByTokenVerificacion(token)
                 .orElseThrow(() -> new ResourceNotFoundException("Token de verificación inválido"));
-        if (usuario.getTokenVerificacionExpiraEn() == null || usuario.getTokenVerificacionExpiraEn().isBefore(LocalDateTime.now())) {
+        if (usuario.getTokenVerificacionExpiraEn() == null || usuario.getTokenVerificacionExpiraEn().isBefore(now())) {
             throw new IllegalArgumentException("El token de verificación expiró");
         }
         usuario.setEmailVerificado(true);
@@ -260,7 +261,7 @@ public class AuthService {
         if (usuario.getTokenVerificacion() == null || usuario.getTokenVerificacionExpiraEn() == null) {
             throw new IllegalArgumentException("No hay una verificación pendiente para esta cuenta");
         }
-        if (usuario.getTokenVerificacionExpiraEn().isBefore(LocalDateTime.now())) {
+        if (usuario.getTokenVerificacionExpiraEn().isBefore(now())) {
             throw new IllegalArgumentException("El código de verificación expiró. Pedí uno nuevo desde el registro o contactá a administración.");
         }
         if (!usuario.getTokenVerificacion().equals(request.getCodigo().trim())) {
@@ -322,7 +323,7 @@ public class AuthService {
 
         Usuario usuario = usuarioOpt.get();
         usuario.setTokenRecuperacion(generarCodigoSeisDigitos());
-        usuario.setTokenRecuperacionExpiraEn(LocalDateTime.now().plusMinutes(15));
+        usuario.setTokenRecuperacionExpiraEn(now().plusMinutes(15));
         usuarioRepository.save(usuario);
         boolean emailEnviado = verificationDispatchService.enviarRecuperacionEmail(usuario, usuario.getTokenRecuperacion());
         if (!emailEnviado) {
@@ -349,7 +350,7 @@ public class AuthService {
 
         Usuario usuario = usuarioRepository.findByTokenRecuperacion(request.getToken().trim())
                 .orElseThrow(() -> new ResourceNotFoundException("Token de recuperación inválido"));
-        if (usuario.getTokenRecuperacionExpiraEn() == null || usuario.getTokenRecuperacionExpiraEn().isBefore(LocalDateTime.now())) {
+        if (usuario.getTokenRecuperacionExpiraEn() == null || usuario.getTokenRecuperacionExpiraEn().isBefore(now())) {
             throw new IllegalArgumentException("El token de recuperación expiró");
         }
         usuario.setPasswordHash(passwordEncoder.encode(password));
@@ -364,6 +365,10 @@ public class AuthService {
 
     private String generarCodigoSeisDigitos() {
         return String.format("%06d", SECURE_RANDOM.nextInt(1_000_000));
+    }
+
+    private LocalDateTime now() {
+        return LocalDateTime.now(AppClock.APP_ZONE);
     }
 
     private String nombreCompleto(Usuario usuario) {

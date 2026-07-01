@@ -8,6 +8,7 @@ import com.ramirez.mediturnosback.model.*;
 import com.ramirez.mediturnosback.repository.*;
 import com.ramirez.mediturnosback.security.AuthenticatedUser;
 import com.ramirez.mediturnosback.security.CurrentUserService;
+import com.ramirez.mediturnosback.util.AppClock;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -81,7 +82,7 @@ public class ListaEsperaService {
                     boolean enviado = verificationDispatchService.enviarAvisoListaEspera(email, entry.getPaciente().getNombre(), turnoResponse);
                     if (enviado) {
                         entry.setEstado(EstadoListaEspera.NOTIFICADO);
-                        entry.setNotificadoEn(LocalDateTime.now());
+                        entry.setNotificadoEn(LocalDateTime.now(AppClock.APP_ZONE));
                         listaEsperaRepository.save(entry);
                         auditService.registrar("LISTA_ESPERA_NOTIFICADA", "lista_espera", entry.getId(), "sistema", "Se notificó un turno liberado");
                     }

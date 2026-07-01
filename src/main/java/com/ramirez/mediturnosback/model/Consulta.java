@@ -1,6 +1,7 @@
 package com.ramirez.mediturnosback.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.ramirez.mediturnosback.util.AppClock;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -27,7 +28,7 @@ public class Consulta {
     private Turno turno;
 
     @Column(nullable = false)
-    private LocalDateTime fechaAtencion = LocalDateTime.now();
+    private LocalDateTime fechaAtencion = LocalDateTime.now(AppClock.APP_ZONE);
 
     @Lob
     private String motivoConsulta;

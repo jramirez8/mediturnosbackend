@@ -8,6 +8,7 @@ import com.ramirez.mediturnosback.security.AuthenticatedUser;
 import com.ramirez.mediturnosback.security.CurrentUserService;
 import com.ramirez.mediturnosback.repository.PacienteRepository;
 import com.ramirez.mediturnosback.service.AuditService;
+import com.ramirez.mediturnosback.util.AppClock;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 
@@ -35,7 +36,7 @@ public class ConsentimientoController {
         Paciente p = pacienteRepository.findById(pacienteId).orElseThrow(() -> new ResourceNotFoundException("Paciente no encontrado"));
         boolean aceptado = Boolean.TRUE.equals(request.getAceptado());
         p.setConsentimientoDatosAceptado(aceptado);
-        p.setConsentimientoDatosAceptadoEn(aceptado ? LocalDateTime.now() : null);
+        p.setConsentimientoDatosAceptadoEn(aceptado ? LocalDateTime.now(AppClock.APP_ZONE) : null);
         p.setConsentimientoTexto(request.getTexto());
         pacienteRepository.save(p);
         auditService.registrar("CONSENTIMIENTO_DATOS", "pacientes", pacienteId, null, aceptado ? "Aceptó consentimiento" : "Revocó consentimiento");

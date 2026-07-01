@@ -12,6 +12,8 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Date;
 
+// JJWT registered claim setters still require java.util.Date.
+@SuppressWarnings("java:S2143")
 @Service
 public class JwtService {
 

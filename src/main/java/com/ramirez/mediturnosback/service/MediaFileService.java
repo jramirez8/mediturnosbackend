@@ -1,5 +1,6 @@
 package com.ramirez.mediturnosback.service;
 
+import com.ramirez.mediturnosback.util.AppClock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
@@ -71,7 +72,7 @@ public class MediaFileService {
             byte[] compressed = compressJpeg(resized);
 
             String safeCategory = sanitizePathPart(category == null ? "general" : category);
-            String date = LocalDate.now().toString();
+            String date = LocalDate.now(AppClock.APP_ZONE).toString();
             Path directory = root().resolve(safeCategory).resolve(String.valueOf(ownerId == null ? 0 : ownerId)).resolve(date);
             Files.createDirectories(directory);
 
@@ -121,7 +122,7 @@ public class MediaFileService {
 
         try (InputStream inputStream = file.getInputStream()) {
             String safeCategory = sanitizePathPart(category == null ? "general" : category);
-            String date = LocalDate.now().toString();
+            String date = LocalDate.now(AppClock.APP_ZONE).toString();
             Path directory = root().resolve(safeCategory).resolve(String.valueOf(ownerId == null ? 0 : ownerId)).resolve(date);
             Files.createDirectories(directory);
 

@@ -1,5 +1,6 @@
 package com.ramirez.mediturnosback.exception;
 
+import com.ramirez.mediturnosback.util.AppClock;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.AccessDeniedException;
@@ -63,7 +64,7 @@ public class GlobalExceptionHandler {
 
     private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String message, Object details) {
         Map<String, Object> body = new HashMap<>();
-        body.put("timestamp", LocalDateTime.now());
+        body.put("timestamp", LocalDateTime.now(AppClock.APP_ZONE));
         body.put("status", status.value());
         body.put("error", message);
         body.put("message", message);
